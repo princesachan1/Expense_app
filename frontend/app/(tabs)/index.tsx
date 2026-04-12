@@ -1,121 +1,305 @@
-import { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image, ActivityIndicator, ScrollView, Dimensions, Alert } from 'react-native';
+import { useState, useCallback, useEffect } from 'react';
+import {
+  View, Text, StyleSheet, TouchableOpacity,
+  ActivityIndicator, ScrollView, Dimensions, Alert,
+  DeviceEventEmitter,
+} from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import DocumentScanner from 'react-native-document-scanner-plugin';
 import { Ionicons } from '@expo/vector-icons';
-import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useFocusEffect } from '@react-navigation/native';
+import { useRouter } from 'expo-router';
 
-// Refactored & New Imports
-import { apiService, StructuredData } from '../../services/apiService';
-import { ExpenseCard } from '../../components/ExpenseCard';
+import { apiService, StructuredData, ExpenseRecord } from '../../services/apiService';
 import { EditExpenseModal } from '../../components/EditExpenseModal';
+import { HistoryItem } from '../../components/HistoryItem';
+import { AuthService } from '../../services/AuthService';
 
 const { width } = Dimensions.get('window');
 
+// ──────────────────────────────────────────
+// Shared date parser (same as Analytics)
+// ──────────────────────────────────────────
+function parseExpenseDate(raw: string | undefined | null): Date | null {
+  if (!raw) return null;
+  const native = new Date(raw);
+  if (!isNaN(native.getTime())) return native;
+
+  const parts = raw.split(/[-/]/);
+  if (parts.length !== 3) return null;
+
+  let day = parseInt(parts[0], 10);
+  let month = parseInt(parts[1], 10) - 1;
+  let year = parseInt(parts[2], 10);
+
+  if (parts[0].length === 4) {
+    year = parseInt(parts[0], 10);
+    day = parseInt(parts[2], 10);
+  }
+  if (year < 100) year += 2000;
+  if (isNaN(day) || isNaN(month) || isNaN(year)) return null;
+
+  const d = new Date(year, month, day);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+// ──────────────────────────────────────────
+// Category icon mapping
+// ──────────────────────────────────────────
+const CATEGORY_ICONS: Record<string, string> = {
+  'Groceries': 'basket',
+  'Fuel & Transport': 'car',
+  'Food': 'fast-food',
+  'Bills & Utilities': 'flash',
+  'Shopping': 'cart',
+  'Entertainment': 'film',
+  'Health': 'medkit',
+  'Education': 'school',
+  'Travel': 'airplane',
+  'Personal Care': 'body',
+  'Other': 'ellipsis-horizontal',
+};
+
+// ──────────────────────────────────────────
+// Component
+// ──────────────────────────────────────────
 export default function HomeScreen() {
-  const [image, setImage] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const router = useRouter();
+
+  const [expenses, setExpenses] = useState<ExpenseRecord[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [totalThisMonth, setTotalThisMonth] = useState(0);
+  const [username, setUsername] = useState('User');
+
+  // Extraction state
+  const [isExtracting, setIsExtracting] = useState(false);
   const [extractedData, setExtractedData] = useState<StructuredData | null>(null);
   const [isEditModalVisible, setIsEditModalVisible] = useState(false);
 
-  const handleExtraction = async (photoUri: string) => {
-    setIsLoading(true);
-    setExtractedData(null);
-
+  // ── Load & compute ──
+  const loadHistory = async () => {
     try {
-      const result = await apiService.extractReceipt(photoUri);
-      if (result.success && result.structured_data) {
-        setExtractedData(result.structured_data);
-      } else {
-        Alert.alert("Extraction Failed", result.error || "Could not read the receipt.");
+      const user = await AuthService.getCurrentUser();
+      if (user) setUsername(user.username);
+
+      const result = await apiService.fetchExpenses();
+      if (result.success && result.expenses) {
+        setExpenses(result.expenses);
+
+        const now = new Date();
+        const curM = now.getMonth();
+        const curY = now.getFullYear();
+
+        let monthly = 0;
+
+        result.expenses.forEach(exp => {
+
+
+          const d = parseExpenseDate(exp.date);
+          if (d && d.getMonth() === curM && d.getFullYear() === curY) {
+            monthly += exp.total;
+          }
+        });
+
+        setTotalThisMonth(monthly);
+
       }
     } catch (error) {
-      Alert.alert("Connection Error", "Ensure your backend is running and Tailscale is active.");
+      console.error('Dashboard load error:', error);
     } finally {
       setIsLoading(false);
     }
   };
 
+  useFocusEffect(useCallback(() => { loadHistory(); }, []));
+
+  // ── Event listeners for the "+" action button ──
+  useEffect(() => {
+    const scanSub = DeviceEventEmitter.addListener('triggerScan', onScan);
+    const gallerySub = DeviceEventEmitter.addListener('triggerGallery', onGallery);
+    const manualSub = DeviceEventEmitter.addListener('triggerManual', () => {
+      setExtractedData({
+        merchant: '',
+        total: '',
+        date: new Date().toISOString().split('T')[0],
+        category: 'Other',
+        gstno: '',
+      });
+      setIsEditModalVisible(true);
+    });
+    return () => {
+      scanSub.remove();
+      gallerySub.remove();
+      manualSub.remove();
+    };
+  }, []);
+
+  // ── AI Scan flow ──
+  const onScan = async () => {
+    const { granted } = await ImagePicker.requestCameraPermissionsAsync();
+    if (!granted) {
+      Alert.alert('Permission Required', 'Camera access is needed to scan receipts.');
+      return;
+    }
+
+    try {
+      const { scannedImages } = await DocumentScanner.scanDocument({
+        maxNumDocuments: 1,
+      });
+
+      if (scannedImages && scannedImages.length > 0) {
+        handleExtraction(scannedImages[0]);
+      }
+    } catch (error) {
+      console.error('Document Scanner Error:', error);
+      Alert.alert('Scanner Error', 'Failed to launch the document scanner.');
+    }
+  };
+
+  const onGallery = async () => {
+    const { granted } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!granted) {
+      Alert.alert('Permission Required', 'Gallery access is needed to pick receipts.');
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      allowsEditing: true,
+      quality: 1,
+      mediaTypes: ['images'],
+    });
+
+    if (!result.canceled && result.assets[0]) {
+      handleExtraction(result.assets[0].uri);
+    }
+  };
+
+  const handleExtraction = async (photoUri: string) => {
+    setIsExtracting(true);
+    setExtractedData(null);
+    try {
+      const result = await apiService.extractReceipt(photoUri);
+      if (result.success && result.structured_data) {
+        setExtractedData(result.structured_data);
+        setIsEditModalVisible(true);
+      } else {
+        Alert.alert('Extraction Failed', result.error || 'Could not read the receipt.');
+      }
+    } catch {
+      Alert.alert('Connection Error', 'Ensure your backend is running.');
+    } finally {
+      setIsExtracting(false);
+    }
+  };
+
+  // ── Save ──
   const onSaveExpense = async (finalData: any) => {
     try {
       const result = await apiService.saveExpense(finalData);
       if (result.success) {
-        Alert.alert("Success", "Expense saved to database!");
+        Alert.alert('Success', 'Expense saved!');
         setExtractedData(null);
-        setImage(null);
         setIsEditModalVisible(false);
+        loadHistory();
       }
-    } catch (error) {
-      Alert.alert("Save Failed", "Could not connect to database.");
+    } catch {
+      Alert.alert('Save Failed', 'Could not connect to database.');
     }
   };
 
-  const onScan = async () => {
-    const permission = await ImagePicker.requestCameraPermissionsAsync();
-    if (!permission.granted) return;
-
-    const result = await ImagePicker.launchCameraAsync({ allowsEditing: true, quality: 1 });
-    if (!result.canceled && result.assets[0]) {
-      setImage(result.assets[0].uri);
-      handleExtraction(result.assets[0].uri);
-    }
-  };
-
-  const onPick = async () => {
-    const result = await ImagePicker.launchImageLibraryAsync({ allowsEditing: true, quality: 1 });
-    if (!result.canceled && result.assets[0]) {
-      setImage(result.assets[0].uri);
-      handleExtraction(result.assets[0].uri);
-    }
-  };
-
+  // ──────────────────────────────────────────
+  // Render
+  // ──────────────────────────────────────────
   return (
     <View style={styles.container}>
-      <LinearGradient colors={['#1a1a1a', '#000000']} style={StyleSheet.absoluteFill} />
-      
+      <LinearGradient colors={['#1a1a1a', '#000']} style={StyleSheet.absoluteFill} />
+
+      {/* AI extraction overlay */}
+      {isExtracting && (
+        <View style={styles.extractingOverlay}>
+          <ActivityIndicator size="large" color="#4CAF50" />
+          <Text style={styles.extractingText}>AI is reading your receipt…</Text>
+        </View>
+      )}
+
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+
+        {/* ── Header ── */}
         <Animated.View entering={FadeInDown.delay(100)} style={styles.header}>
-          <Text style={styles.subtitle}>Scan & Save</Text>
-          <Text style={styles.title}>Expense AI 💸</Text>
+          <View>
+            <Text style={styles.greeting}>Welcome back,</Text>
+            <Text style={styles.name}>{username} </Text>
+          </View>
+          <TouchableOpacity
+            style={styles.profileBtn}
+            onPress={() => router.push('/settings')}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Ionicons name="person-circle-outline" size={42} color="#4CAF50" />
+          </TouchableOpacity>
         </Animated.View>
 
-        <View style={styles.actions}>
-          <TouchableOpacity style={styles.mainBtn} onPress={onScan}>
-            <LinearGradient colors={['#4CAF50', '#2E7D32']} style={styles.gradient} start={{x:0,y:0}} end={{x:1,y:0}}>
-              <Ionicons name="scan-outline" size={24} color="white" />
-              <Text style={styles.btnText}>Quick Scan</Text>
-            </LinearGradient>
-          </TouchableOpacity>
+        {/* ── Main Summary Card ── */}
+        <Animated.View entering={FadeInDown.delay(200)} style={styles.summaryCard}>
+          <LinearGradient
+            colors={['#e8ece69f', '#f0f7f0ff']}
+            style={styles.summaryGradient}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+          >
+            <Text style={styles.summaryLabel}>Total Spent This Month</Text>
+            <Text style={styles.summaryAmount}>
+              ₹{totalThisMonth.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+            </Text>
 
-          <TouchableOpacity style={styles.subBtn} onPress={onPick}>
-            <Ionicons name="images-outline" size={20} color="#B0B0B0" />
-            <Text style={styles.subBtnText}>Upload Image</Text>
+            <View style={styles.chipRow}>
+              <View style={styles.chip}>
+                <Ionicons name="receipt-outline" size={14} color="rgba(255,255,255,0.8)" />
+                <Text style={styles.chipText}>{expenses.length} records</Text>
+              </View>
+            </View>
+          </LinearGradient>
+        </Animated.View>
+
+
+        {/* ── Recent Transactions ── */}
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Recent Transactions</Text>
+          <TouchableOpacity onPress={() => router.push('/history')}>
+            <Text style={styles.seeAll}>See All</Text>
           </TouchableOpacity>
         </View>
 
-        {image && (
-          <Animated.View entering={FadeInUp} style={styles.preview}>
-            <Image source={{ uri: image }} style={styles.img} />
-            {isLoading && (
-              <View style={styles.overlay}>
-                <ActivityIndicator size="large" color="#4CAF50" />
-                <Text style={styles.loadMsg}>Reading Receipt...</Text>
-              </View>
-            )}
-          </Animated.View>
-        )}
-
-        {extractedData && !isLoading && (
-          <ExpenseCard 
-            data={extractedData} 
-            onSave={() => setIsEditModalVisible(true)} 
-          />
-        )}
+        <View style={styles.recentList}>
+          {isLoading ? (
+            <ActivityIndicator size="small" color="#52a452ff" style={{ marginTop: 20 }} />
+          ) : expenses.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Ionicons name="receipt-outline" size={48} color="#333" />
+              <Text style={styles.emptyText}>No expenses yet</Text>
+              <Text style={styles.emptyHint}>
+                Tap the + button to scan a receipt or add manually
+              </Text>
+            </View>
+          ) : (
+            expenses.slice(0, 5).map((item, index) => (
+              <HistoryItem
+                key={item.id}
+                item={item}
+                index={index}
+                onPress={() => router.push('/history')}
+              />
+            ))
+          )}
+        </View>
       </ScrollView>
 
-      <EditExpenseModal 
+      {/* ── Edit / Manual Entry Modal ── */}
+      <EditExpenseModal
         visible={isEditModalVisible}
-        title="Review Extraction"
+        title={extractedData?.merchant ? 'Confirm Details' : 'Manual Entry'}
         initialData={extractedData}
         onClose={() => setIsEditModalVisible(false)}
         onSave={onSaveExpense}
@@ -124,20 +308,98 @@ export default function HomeScreen() {
   );
 }
 
+// ──────────────────────────────────────────
+// Styles
+// ──────────────────────────────────────────
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#000' },
-  scroll: { paddingTop: 60, paddingBottom: 40, paddingHorizontal: 20, alignItems: 'center' },
-  header: { width: '100%', marginBottom: 30 },
-  subtitle: { fontSize: 16, color: '#777' },
-  title: { fontSize: 32, fontWeight: 'bold', color: '#fff' },
-  actions: { width: '100%', gap: 16, marginBottom: 30 },
-  mainBtn: { width: '100%', height: 60, borderRadius: 30, overflow: 'hidden' },
-  gradient: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10 },
-  btnText: { color: 'white', fontSize: 18, fontWeight: 'bold' },
-  subBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 12, gap: 8 },
-  subBtnText: { color: '#B0B0B0', fontSize: 15, fontWeight: '600' },
-  preview: { width: width * 0.85, height: 350, borderRadius: 24, overflow: 'hidden', backgroundColor: '#1A1A1A', marginBottom: 20 },
-  img: { width: '100%', height: '100%', opacity: 0.7 },
-  overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center' },
-  loadMsg: { color: '#fff', marginTop: 15, fontSize: 14 }
+  scroll: { paddingTop: 60, paddingBottom: 120, paddingHorizontal: 20 },
+
+  // Header
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 28,
+  },
+  greeting: { fontSize: 15, color: '#777' },
+  name: { fontSize: 26, fontWeight: 'bold', color: '#fff', marginTop: 2 },
+  profileBtn: {
+    width: 48, height: 48, borderRadius: 24,
+    justifyContent: 'center', alignItems: 'center',
+  },
+
+  // Summary card
+  summaryCard: {
+    borderRadius: 24,
+    overflow: 'hidden',
+    marginBottom: 24,
+    elevation: 10,
+    shadowColor: '#317433ff',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.25,
+    shadowRadius: 16,
+  },
+  summaryGradient: { padding: 24 },
+  summaryLabel: {
+    color: 'rgba(255,255,255,0.6)',
+    fontSize: 13,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+  },
+  summaryAmount: {
+    color: '#fff',
+    fontSize: 34,
+    fontWeight: 'bold',
+    marginVertical: 8,
+  },
+  chipRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 12,
+    flexWrap: 'wrap',
+  },
+  chip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    gap: 6,
+  },
+  chipText: { color: '#fff', fontSize: 12, fontWeight: '600' },
+
+
+  // Section
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  sectionTitle: { fontSize: 18, fontWeight: 'bold', color: '#fff' },
+  seeAll: { color: '#4CAF50', fontSize: 14, fontWeight: '600' },
+
+  // Recent list
+  recentList: { minHeight: 100 },
+
+  // Empty state
+  emptyState: {
+    alignItems: 'center',
+    paddingVertical: 40,
+    gap: 8,
+  },
+  emptyText: { color: '#555', fontSize: 16, fontWeight: '600', marginTop: 8 },
+  emptyHint: { color: '#444', fontSize: 13, textAlign: 'center' },
+
+  // Extracting overlay
+  extractingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.85)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 100,
+  },
+  extractingText: { color: '#fff', marginTop: 20, fontSize: 16, fontWeight: '500' },
 });

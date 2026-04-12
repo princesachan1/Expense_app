@@ -1,0 +1,76 @@
+# General OS / Editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Database
+# Database & Datasets
+backend/receipt_dataset_2780/
+backend/ml_Data/
+backend/ml_model/
+backend/scratch/
+
+# Node.js / React Native / Expo (frontend)
+frontend/node_modules/
+frontend/npm-debug.log
+frontend/yarn-error.log
+frontend/yarn-debug.log
+frontend/.expo/
+frontend/dist/
+frontend/build/
+frontend/*.log
+frontend/web-build/
+frontend/.expo-shared/
+frontend/constants/Config.ts
+
+# Android/iOS builds
+frontend/android/
+frontend/ios/
+*.apk
+*.ipa
+*.app
+
+# Python / Backend (backend)
+backend/__pycache__/
+backend/*.py[cod]
+backend/*$py.class
+backend/.venv/
+backend/venv/
+backend/env/
+backend/ENV/
+backend/.pytest_cache/
+backend/.coverage
+backend/htmlcov/
+backend/pip-log.txt
+backend/pip-delete-this-directory.txt
+
+# Environment files
+.env
+.env*
+!.env.example
+backend/.env
+
+# Data & AI Models
+output/
+backend/output/
+*.jpg
+*.jpeg
+*.png
+!frontend/assets/images/*.png
+*.pdf
+
+# Temporary folders
+tmp/
+temp/
+scratch/
+*.md
+!README.md
+
+# Database
+*.sql
+*.sqlite
+*.db
+!expense_tracker.sql # keep schema if intended

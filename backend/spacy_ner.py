@@ -1,20 +1,26 @@
 import os
 import spacy
 
-# Load our custom spaCy model for structured data extraction
-print("Loading Custom spaCy model...")
-try:
-    # Use model-best if it exists, otherwise fallback to model-last
-    model_path = "output/model-best" if os.path.exists("output/model-best") else "output/model-last"
-    if os.path.exists(model_path):
-        nlp = spacy.load(model_path)
-        print(f"Custom spaCy model loaded from {model_path}!")
-    else:
-        print("Warning: Custom spaCy model not found. Run training first.")
-        nlp = None
-except Exception as e:
-    print(f"Error loading custom spaCy model: {e}")
-    nlp = None
+# Initialize the custom spaCy model lazily
+nlp_instance = None
+
+def get_nlp():
+    global nlp_instance
+    if nlp_instance is None:
+        print("Loading Custom spaCy model...")
+        try:
+            # Use model-best if it exists, otherwise fallback to model-last
+            model_path = "output/model-best" if os.path.exists("output/model-best") else "output/model-last"
+            if os.path.exists(model_path):
+                nlp_instance = spacy.load(model_path)
+                print(f"Custom spaCy model loaded from {model_path}!")
+            else:
+                print("Warning: Custom spaCy model not found. Run training first.")
+                nlp_instance = None
+        except Exception as e:
+            print(f"Error loading custom spaCy model: {e}")
+            nlp_instance = None
+    return nlp_instance
 
 def extract_entities(extracted_lines):
     """
@@ -29,6 +35,7 @@ def extract_entities(extracted_lines):
         "category": "Other"
     }
     
+    nlp = get_nlp()
     if not nlp or not extracted_lines:
         return structured_data, ""
     

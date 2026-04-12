@@ -88,7 +88,7 @@ export default function HistoryScreen() {
         </Animated.View>
 
         <View style={styles.list}>
-          <Text style={styles.sectionTitle}>Recent Transactions</Text>
+          <Text style={styles.sectionTitle}>Transactions</Text>
           {isLoading && !refreshing ? (
             <ActivityIndicator size="large" color="#4CAF50" style={{ marginTop: 20 }} />
           ) : expenses.length === 0 ? (
@@ -122,7 +122,7 @@ export default function HistoryScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#000' },
-  scroll: { paddingTop: 60, paddingBottom: 40, paddingHorizontal: 20 },
+  scroll: { paddingTop: 60, paddingBottom: 100, paddingHorizontal: 20 },
   header: { marginBottom: 30 },
   title: { fontSize: 28, fontWeight: 'bold', color: '#fff', marginBottom: 20 },
   statsCard: { borderRadius: 24, overflow: 'hidden', borderWidth: 1, borderColor: '#333' },
@@ -131,7 +131,7 @@ const styles = StyleSheet.create({
   statLabel: { color: '#777', fontSize: 12, textTransform: 'uppercase' },
   statValue: { color: '#fff', fontSize: 22, fontWeight: 'bold' },
   statDivider: { width: 1, height: 40, backgroundColor: '#333' },
-  list: { marginBottom: 30, minHeight: 300 },
+  list: { marginBottom: 30, minHeight: 400 },
   sectionTitle: { color: '#777', fontSize: 14, fontWeight: 'bold', marginBottom: 16, textTransform: 'uppercase' },
   empty: { alignItems: 'center', justifyContent: 'center', paddingVertical: 60 },
   emptyText: { color: '#444', marginTop: 16, fontSize: 16 }

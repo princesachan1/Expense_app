@@ -83,9 +83,25 @@ export const EditExpenseModal: React.FC<EditExpenseModalProps> = ({
                 </View>
 
                 <View style={styles.inputGroup}>
+                  <Text style={styles.label}>GST Number</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={formData?.gstno}
+                    onChangeText={(text) => setFormData({ ...formData, gstno: text })}
+                    placeholder="e.g. 29AAAAA0000A1Z5"
+                    placeholderTextColor="#444"
+                    autoCapitalize="characters"
+                  />
+                </View>
+
+                <View style={styles.inputGroup}>
                   <Text style={styles.label}>Category</Text>
                   <View style={styles.categoryRow}>
-                    {['Food', 'Shopping', 'Bills', 'Travel'].map((cat) => (
+                    {[
+                      'Groceries', 'Fuel & Transport', 'Food', 'Bills & Utilities', 
+                      'Shopping', 'Entertainment', 'Health', 'Education', 
+                      'Travel', 'Personal Care', 'Other'
+                    ].map((cat) => (
                       <TouchableOpacity 
                         key={cat}
                         style={[

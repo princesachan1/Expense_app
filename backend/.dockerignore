@@ -1,0 +1,13 @@
+node_modules
+.env
+__pycache__
+env
+.git
+.idea
+.vscode
+*.pyc
+scratch/
+receipt_dataset_2780/
+ml_Data/
+ml_model/
+*.log

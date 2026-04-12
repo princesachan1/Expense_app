@@ -4,29 +4,34 @@ import shutil
 import asyncio
 import io
 from concurrent.futures import ThreadPoolExecutor
-from fastapi import FastAPI, UploadFile, File, Depends, HTTPException
+from fastapi import FastAPI, UploadFile, File, Depends, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import OAuth2PasswordRequestForm
 from PIL import Image
 from sqlalchemy.orm import Session
+from datetime import timedelta
+from pydantic import BaseModel
 
 # Import our modular logic
 from paddle_ocr import perform_ocr
 from spacy_ner import extract_entities
 from regex_logic import apply_fallbacks
-from database import init_db, get_db, Expense
+from database import init_db, get_db, Expense, User
 from timing import Timer
+from auth import (
+    get_password_hash, verify_password, create_access_token, 
+    get_current_user, ACCESS_TOKEN_EXPIRE_MINUTES
+)
 
 app = FastAPI(title="Expense AI Backend")
 
-# Thread pool to prevent blocking the event loop during CPU/GPU-heavy OCR
+# Thread pool for heavy OCR work
 executor = ThreadPoolExecutor(max_workers=2)
 
-# Initialize the database on startup
 @app.on_event("startup")
 def startup_event():
     init_db()
 
-# CORS middleware
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -35,71 +40,103 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-@app.get("/")
-def read_root():
-    return {"status": "AI Backend is Running! Modular and Ready."}
+# ──────────────────────────────────────────
+# AUTH MODELS
+# ──────────────────────────────────────────
 
-@app.post("/")
-def debug_post_root():
-    return {
-        "success": False, 
-        "error": "You hit POST /. Please use POST /api/extract instead.",
-        "hint": "Check your frontend API_URL configuration."
-    }
+class UserRegister(BaseModel):
+    username: str
+    password: str
+
+# ──────────────────────────────────────────
+# AUTH ENDPOINTS
+# ──────────────────────────────────────────
+
+@app.post("/api/auth/register")
+def register_user(data: UserRegister, db: Session = Depends(get_db)):
+    print(f"Registration attempt for user: {data.username}")
+    
+    if not data.username or not data.password:
+        raise HTTPException(status_code=400, detail="Username and password required")
+    
+    existing_user = db.query(User).filter(User.username == data.username).first()
+    if existing_user:
+        print(f"Registration failed: Username {data.username} already exists")
+        raise HTTPException(status_code=400, detail="Username already registered")
+    
+    hashed_pwd = get_password_hash(data.password)
+    new_user = User(username=data.username, hashed_password=hashed_pwd)
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+    print(f"User created successfully: {data.username}")
+    return {"success": True, "message": "User created successfully"}
+
+@app.post("/api/auth/login")
+def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+    print(f"Login attempt for user: {form_data.username}")
+    user = db.query(User).filter(User.username == form_data.username).first()
+    if not user or not verify_password(form_data.password, user.hashed_password):
+        print(f"Login failed for user: {form_data.username}")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect username or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(
+        data={"sub": user.username}, expires_delta=access_token_expires
+    )
+    print(f"Login successful for user: {user.username}")
+    return {"access_token": access_token, "token_type": "bearer"}
+
+@app.get("/api/auth/me")
+def read_users_me(current_user: User = Depends(get_current_user)):
+    return {"username": current_user.username, "id": current_user.id}
+
+# ──────────────────────────────────────────
+# EXPENSE ENDPOINTS (Protected)
+# ──────────────────────────────────────────
 
 def run_extraction_pipeline(temp_file_path: str):
-    """
-    Synchronous pipeline — runs in a background thread so FastAPI stays responsive.
-    """
     with Timer("Overall Pipeline"):
-        with Timer("PaddleOCR"):
-            extracted_lines = perform_ocr(temp_file_path)
-            
-        with Timer("spaCy NER"):
-            structured_data, full_text = extract_entities(extracted_lines)
-            
-        with Timer("Regex Fallbacks"):
-            structured_data = apply_fallbacks(full_text, extracted_lines, structured_data)
-            
-    return structured_data, extracted_lines
+        extracted_lines = perform_ocr(temp_file_path)
+        structured_data, full_text = extract_entities(extracted_lines)
+        structured_data = apply_fallbacks(full_text, extracted_lines, structured_data)
+    return structured_data
 
 @app.post("/api/extract")
-async def extract_text_from_receipt(file: UploadFile = File(...)):
-    """Extracts data. Does NOT save to DB — frontend handles review first."""
-    print(f"--- Received extraction request: {file.filename} ---")
-    
+async def extract_text_from_receipt(
+    file: UploadFile = File(...), 
+    current_user: User = Depends(get_current_user)
+):
     temp_dir = tempfile.mkdtemp()
     temp_file_path = os.path.join(temp_dir, file.filename or "receipt.jpg")
-    
     try:
-        with Timer("Image Preprocessing"):
-            # Read bytes directly from the upload stream — skip double disk I/O
-            contents = await file.read()
-            img = Image.open(io.BytesIO(contents))
-            img.thumbnail((800, 800))
-            img.save(temp_file_path, "JPEG", quality=95)
+        contents = await file.read()
+        img = Image.open(io.BytesIO(contents))
+        img.thumbnail((800, 800))
+        img.save(temp_file_path, "JPEG", quality=95)
         
-        # Offload heavy AI work to a thread so other endpoints remain responsive
         loop = asyncio.get_running_loop()
-        structured_data, extracted_lines = await loop.run_in_executor(
+        structured_data = await loop.run_in_executor(
             executor, run_extraction_pipeline, temp_file_path
         )
-        
-        return {
-            "success": True,
-            "filename": file.filename, 
-            "structured_data": structured_data
-        }
-        
+        return {"success": True, "structured_data": structured_data}
     finally:
         shutil.rmtree(temp_dir, ignore_errors=True)
 
 @app.post("/api/expenses")
-def save_expense(data: dict, db: Session = Depends(get_db)):
-    """Saves a new expense manually (usually after review)"""
+def save_expense(
+    data: dict, 
+    db: Session = Depends(get_db), 
+    current_user: User = Depends(get_current_user)
+):
     try:
         total_val = float(str(data.get("total", 0.0)).replace(",", ""))
         new_expense = Expense(
+            user_id=current_user.id,
             merchant=data.get("merchant"),
             total=total_val,
             date=data.get("date"),
@@ -112,13 +149,24 @@ def save_expense(data: dict, db: Session = Depends(get_db)):
         db.refresh(new_expense)
         return {"success": True, "id": new_expense.id}
     except Exception as e:
-        print(f"Error saving expense: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.get("/api/expenses")
+def get_expenses(
+    db: Session = Depends(get_db), 
+    current_user: User = Depends(get_current_user)
+):
+    expenses = db.query(Expense).filter(Expense.user_id == current_user.id).order_by(Expense.created_at.desc()).all()
+    return {"success": True, "expenses": expenses}
+
 @app.put("/api/expenses/{expense_id}")
-def update_expense(expense_id: int, data: dict, db: Session = Depends(get_db)):
-    """Updates an existing expense in the database"""
-    expense = db.query(Expense).filter(Expense.id == expense_id).first()
+def update_expense(
+    expense_id: int, 
+    data: dict, 
+    db: Session = Depends(get_db), 
+    current_user: User = Depends(get_current_user)
+):
+    expense = db.query(Expense).filter(Expense.id == expense_id, Expense.user_id == current_user.id).first()
     if not expense:
         raise HTTPException(status_code=404, detail="Expense not found")
     
@@ -128,14 +176,11 @@ def update_expense(expense_id: int, data: dict, db: Session = Depends(get_db)):
         if "date" in data: expense.date = data["date"]
         if "category" in data: expense.category = data["category"]
         if "gstno" in data: expense.gstno = data["gstno"]
-        
         db.commit()
         return {"success": True}
     except Exception as e:
-        print(f"Error updating expense: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/api/expenses")
-def get_expenses(db: Session = Depends(get_db)):
-    expenses = db.query(Expense).order_by(Expense.created_at.desc()).all()
-    return {"success": True, "expenses": expenses}
+@app.get("/")
+def read_root():
+    return {"status": "AI Multi-User Backend is Running!"}

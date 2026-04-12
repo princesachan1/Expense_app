@@ -3,14 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 
-interface ExpenseRecord {
-  id: number;
-  merchant: string;
-  total: number;
-  date: string;
-  category: string;
-  created_at: string;
-}
+import { ExpenseRecord } from '../services/apiService';
 
 interface HistoryItemProps {
   item: ExpenseRecord;
@@ -34,7 +27,12 @@ export const HistoryItem: React.FC<HistoryItemProps> = ({ item, index, onPress }
         
         <View style={styles.details}>
           <Text style={styles.merchant}>{item.merchant}</Text>
-          <Text style={styles.date}>{item.date || new Date(item.created_at).toLocaleDateString()}</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <Text style={styles.date}>{item.date || new Date(item.created_at).toLocaleDateString()}</Text>
+            {item.gstno ? (
+              <Text style={styles.gstTag}> • GST: {item.gstno}</Text>
+            ) : null}
+          </View>
         </View>
         
         <View style={styles.amountWrap}>
@@ -48,17 +46,23 @@ export const HistoryItem: React.FC<HistoryItemProps> = ({ item, index, onPress }
   );
 };
 
-const getCategoryIcon = (category: string) => {
+function getCategoryIcon(category: string): React.ComponentProps<typeof Ionicons>['name'] {
   if (!category) return 'card';
-  switch (category.toLowerCase()) {
-    case 'food': return 'fast-food';
-    case 'shopping': return 'cart';
-    case 'transport': return 'car';
-    case 'bills': return 'receipt';
-    case 'entertainment': return 'play';
-    default: return 'card';
-  }
-};
+  const map: Record<string, any> = {
+    'groceries': 'basket',
+    'fuel & transport': 'car',
+    'food': 'fast-food',
+    'bills & utilities': 'flash',
+    'shopping': 'cart',
+    'entertainment': 'film',
+    'health': 'medkit',
+    'education': 'school',
+    'travel': 'airplane',
+    'personal care': 'body',
+    'other': 'ellipsis-horizontal',
+  };
+  return map[category.toLowerCase()] || 'card';
+}
 
 const styles = StyleSheet.create({
   card: {
@@ -91,7 +95,12 @@ const styles = StyleSheet.create({
   },
   date: {
     color: '#666',
-    fontSize: 13,
+    fontSize: 12,
+  },
+  gstTag: {
+    color: '#444',
+    fontSize: 11,
+    fontStyle: 'italic',
   },
   amountWrap: {
     alignItems: 'flex-end',

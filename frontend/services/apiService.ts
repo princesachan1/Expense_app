@@ -1,4 +1,5 @@
 import { API_CONFIG } from '../constants/Config';
+import { AuthService } from './AuthService';
 
 export interface StructuredData {
   merchant?: string;
@@ -32,6 +33,14 @@ export interface HistoryResponse {
   expenses?: ExpenseRecord[];
 }
 
+async function getHeaders(isJson = true) {
+  const token = await AuthService.getToken();
+  const headers: Record<string, string> = {};
+  if (isJson) headers['Content-Type'] = 'application/json';
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+  return headers;
+}
+
 export const apiService = {
   /**
    * Uploads a receipt image for AI extraction. (NO DB SAVE)
@@ -47,8 +56,10 @@ export const apiService = {
     } as any);
 
     try {
+      const headers = await getHeaders(false);
       const response = await fetch(`${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.EXTRACT}`, {
         method: 'POST',
+        headers,
         body: formData,
       });
       return await response.json();
@@ -63,9 +74,10 @@ export const apiService = {
    */
   async saveExpense(data: Partial<ExpenseRecord>): Promise<{ success: boolean; id?: number }> {
     try {
+      const headers = await getHeaders();
       const response = await fetch(`${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.EXPENSES}`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify(data),
       });
       return await response.json();
@@ -80,9 +92,10 @@ export const apiService = {
    */
   async updateExpense(id: number, data: Partial<ExpenseRecord>): Promise<{ success: boolean }> {
     try {
+      const headers = await getHeaders();
       const response = await fetch(`${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.EXPENSES}/${id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify(data),
       });
       return await response.json();
@@ -97,7 +110,10 @@ export const apiService = {
    */
   async fetchExpenses(): Promise<HistoryResponse> {
     try {
-      const response = await fetch(`${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.EXPENSES}`);
+      const headers = await getHeaders();
+      const response = await fetch(`${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.EXPENSES}`, {
+        headers
+      });
       return await response.json();
     } catch (error) {
       console.error("apiService.fetchExpenses Error:", error);

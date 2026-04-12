@@ -1,32 +1,36 @@
 import os
-from sqlalchemy import MetaData
-from sqlalchemy import Column, Integer, String, Float, DateTime, Text, create_engine
+from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, create_engine
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import sessionmaker, relationship
 from datetime import datetime
 from dotenv import load_dotenv
 
-# Load database credentials from .env file
 load_dotenv()
 
-# Example Connection URL: mysql+mysqlconnector://user:password@host/dbname
-DB_USER = os.getenv("DB_USER", "root")
-DB_PASSWORD = os.getenv("DB_PASSWORD", "")
-DB_HOST = os.getenv("DB_HOST", "localhost")
-DB_NAME = os.getenv("DB_NAME", "expense_tracker")
+# Neon Postgres Connection URL
+DATABASE_URL = os.getenv("DATABASE_URL")
 
-SQLALCHEMY_DATABASE_URL = f"mysql+mysqlconnector://{DB_USER}:{DB_PASSWORD}@{DB_HOST}/{DB_NAME}"
-
-# We use echo=True to see the SQL commands in the terminal (helpful for debugging)
-engine = create_engine(SQLALCHEMY_DATABASE_URL, echo=True)
+# Create PostgreSQL engine
+engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 Base = declarative_base()
+
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String(50), unique=True, index=True, nullable=False)
+    hashed_password = Column(String(255), nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    expenses = relationship("Expense", back_populates="owner")
 
 class Expense(Base):
     __tablename__ = "expenses"
 
     id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     merchant = Column(String(255), nullable=True)
     total = Column(Float, nullable=False)
     date = Column(String(100), nullable=True)
@@ -35,15 +39,15 @@ class Expense(Base):
     filename = Column(String(255), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
+    owner = relationship("User", back_populates="expenses")
+
 def init_db():
-    print(f"Connecting to MySQL at {DB_HOST}...")
+    print("Connecting to PostgreSQL and initializing tables...")
     try:
-        # Create tables if they don't exist
         Base.metadata.create_all(bind=engine)
-        print("Database tables initialized successfully!")
+        print("Database tables initialized successfully on Neon!")
     except Exception as e:
         print(f"Error initializing database: {e}")
-        print("TIP: Make sure you have created the database 'expense_tracker' in MySQL first.")
 
 def get_db():
     db = SessionLocal()
