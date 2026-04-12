@@ -10,12 +10,16 @@ os.environ['OMP_NUM_THREADS'] = '8'
 
 # Initialize the Paddle OCR model
 print("Loading PaddleOCR model...")
-paddle.set_flags({'FLAGS_use_mkldnn': False})
 ocr = PaddleOCR(
-    use_angle_cls=False,
-    enable_mkldnn=False,
+    text_detection_model_name='PP-OCRv5_mobile_det',   # Forced Mobile Detection
+    text_recognition_model_name='en_PP-OCRv5_mobile_rec', # Forced Mobile Recognition
     lang="en",
-    det_limit_side_len=960 # Limit image size to prevent RAM spikes
+    text_det_limit_side_len=736,           # Match app thumbnail resolution
+    use_doc_orientation_classify=False,    # Skip orientation
+    use_doc_unwarping=False,               # Skip unwarping
+    use_textline_orientation=False,        # Skip textline orientation
+    enable_mkldnn=False,                   # Keep False if v3.3.1 bug persists
+    cpu_threads=8,                         # Upgraded for i5-9300H (8 threads)
 )
 print("PaddleOCR model loaded successfully!")
 

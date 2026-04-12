@@ -1,26 +1,32 @@
 import os
 import tempfile
 import shutil
+import asyncio
+import io
+from concurrent.futures import ThreadPoolExecutor
 from fastapi import FastAPI, UploadFile, File, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from PIL import Image
 from sqlalchemy.orm import Session
-from typing import Optional
 
 # Import our modular logic
 from paddle_ocr import perform_ocr
 from spacy_ner import extract_entities
 from regex_logic import apply_fallbacks
 from database import init_db, get_db, Expense
+from timing import Timer
 
 app = FastAPI(title="Expense AI Backend")
+
+# Thread pool to prevent blocking the event loop during CPU/GPU-heavy OCR
+executor = ThreadPoolExecutor(max_workers=2)
 
 # Initialize the database on startup
 @app.on_event("startup")
 def startup_event():
     init_db()
 
-# We use CORS to ensure your mobile app can talk to the server safely
+# CORS middleware
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -41,25 +47,43 @@ def debug_post_root():
         "hint": "Check your frontend API_URL configuration."
     }
 
+def run_extraction_pipeline(temp_file_path: str):
+    """
+    Synchronous pipeline — runs in a background thread so FastAPI stays responsive.
+    """
+    with Timer("Overall Pipeline"):
+        with Timer("PaddleOCR"):
+            extracted_lines = perform_ocr(temp_file_path)
+            
+        with Timer("spaCy NER"):
+            structured_data, full_text = extract_entities(extracted_lines)
+            
+        with Timer("Regex Fallbacks"):
+            structured_data = apply_fallbacks(full_text, extracted_lines, structured_data)
+            
+    return structured_data, extracted_lines
+
 @app.post("/api/extract")
 async def extract_text_from_receipt(file: UploadFile = File(...)):
-    """Extracts data but DOES NOT save to database. Frontend handles editing first."""
-    print(f"--- Recieved extraction request: {file.filename} ---")
+    """Extracts data. Does NOT save to DB — frontend handles review first."""
+    print(f"--- Received extraction request: {file.filename} ---")
     
     temp_dir = tempfile.mkdtemp()
-    temp_file_path = os.path.join(temp_dir, file.filename)
+    temp_file_path = os.path.join(temp_dir, file.filename or "receipt.jpg")
     
-    with open(temp_file_path, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
-        
     try:
-        img = Image.open(temp_file_path)
-        img.thumbnail((736, 736))
-        img.save(temp_file_path, "JPEG")
+        with Timer("Image Preprocessing"):
+            # Read bytes directly from the upload stream — skip double disk I/O
+            contents = await file.read()
+            img = Image.open(io.BytesIO(contents))
+            img.thumbnail((800, 800))
+            img.save(temp_file_path, "JPEG", quality=95)
         
-        extracted_lines = perform_ocr(temp_file_path)
-        structured_data, full_text = extract_entities(extracted_lines)
-        structured_data = apply_fallbacks(full_text, extracted_lines, structured_data)
+        # Offload heavy AI work to a thread so other endpoints remain responsive
+        loop = asyncio.get_running_loop()
+        structured_data, extracted_lines = await loop.run_in_executor(
+            executor, run_extraction_pipeline, temp_file_path
+        )
         
         return {
             "success": True,

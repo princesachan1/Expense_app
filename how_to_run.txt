@@ -12,7 +12,7 @@
   1. Open MySQL and run: `CREATE DATABASE expense_tracker;`
   2. Open `backend/.env` and update `DB_PASSWORD` with your MySQL password.
 - Start the server:
-  `python -m uvicorn main:app --host 0.0.0.0 --port 8080 --reload`
+  `python.exe -m uvicorn main:app --host 0.0.0.0 --port 8080 --reload`
 
 ## 2. Frontend Setup (Expo)
 - Navigate to `frontend/`
