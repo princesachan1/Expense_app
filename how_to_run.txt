@@ -1,0 +1,40 @@
+# Expense AI Tracker - How to Run
+
+## 1. Backend Setup (Python)
+- Navigate to `backend/`
+- Create and activate virtual environment: 
+  `python -m venv env`
+  `.\env\Scripts\activate`
+- Install dependencies:
+  `pip install -r ..\requirements.txt`
+  `python -m spacy download en_core_web_sm`
+- Database Setup:
+  1. Open MySQL and run: `CREATE DATABASE expense_tracker;`
+  2. Open `backend/.env` and update `DB_PASSWORD` with your MySQL password.
+- Start the server:
+  `python -m uvicorn main:app --host 0.0.0.0 --port 8080 --reload`
+
+## 2. Frontend Setup (Expo)
+- Navigate to `frontend/`
+- Install dependencies:
+  `npm install`
+- Start the app:
+  `npx expo start`
+- Open the app on your phone using the Expo Go app by scanning the QR code in the terminal.
+
+## 3. Configuration & Networking
+- **IP Configuration**: Your phone must talk to your computer's Tailscale IP. 
+- Open `frontend/constants/Config.ts` and ensure it looks like this (replace with your actual IP):
+  ```typescript
+  export const API_CONFIG = {
+    BASE_URL: "http://[IP_ADDRESS]",
+    ENDPOINTS: {
+      EXTRACT: "/api/extract",
+      EXPENSES: "/api/expenses",
+    }
+  };
+  ```
+
+## 4. Important Tips
+- Make sure both your computer and phone are connected to the same Tailscale network.
+- You can find your Tailscale IP in the Tailscale app or by running `ipconfig` on your computer.

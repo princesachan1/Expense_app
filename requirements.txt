@@ -1,0 +1,14 @@
+# Python Backend Requirements
+paddleocr
+paddlepaddle
+spacy
+fastapi
+uvicorn
+python-multipart
+sqlalchemy
+mysql-connector-python
+python-dotenv
+pillow
+
+# Post-installation
+# python -m spacy download en_core_web_sm
