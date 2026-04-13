@@ -6,7 +6,6 @@ import {
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import { SmsService } from '../services/SmsService';
 import { apiService } from '../services/apiService';
 import { ExpenseCard } from '../components/ExpenseCard';
@@ -58,17 +57,22 @@ export default function QuickAddScreen() {
       return;
     }
 
+    const amount = parseFloat(formData.amount);
+    if (isNaN(amount) || amount <= 0) {
+      Alert.alert('Invalid Amount', 'Please check the transaction amount.');
+      return;
+    }
+
     setLoading(true);
     try {
       // 1. Send to server. The description is used by the backend SpaCy model 
       // to determine the category automatically.
       const result = await apiService.saveExpense({
-        total: parseFloat(formData.amount),
+        total: amount,
         merchant: formData.merchant,
         date: formData.date,
-        // We send the user's description. The backend logic for automated 
-        // categorization will be triggered by this input.
-        category: formData.description // Temporary, backend overrides or updates this
+        category: 'Pending...',
+        items: [formData.description]
       });
 
       if (result.success) {
@@ -171,53 +175,10 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#fff',
   },
-  card: {
-    backgroundColor: '#1A1A1A',
-    borderRadius: 24,
-    padding: 30,
-    borderWidth: 1,
-    borderColor: '#333',
-    marginBottom: 40,
-    alignItems: 'center',
-  },
   cardContainer: {
     marginBottom: 40,
     alignItems: 'center',
     width: '100%',
-  },
-  detectedLabel: {
-    fontSize: 12,
-    color: '#777',
-    letterSpacing: 2,
-    marginBottom: 10,
-  },
-  amount: {
-    fontSize: 48,
-    fontWeight: '900',
-    color: '#fff',
-    marginBottom: 20,
-  },
-  infoRow: {
-    flexDirection: 'row',
-    width: '100%',
-    justifyContent: 'space-around',
-    borderTopWidth: 1,
-    borderTopColor: '#333',
-    paddingTop: 20,
-  },
-  infoItem: {
-    alignItems: 'center',
-  },
-  infoLabel: {
-    fontSize: 10,
-    color: '#555',
-    letterSpacing: 1,
-    marginBottom: 4,
-  },
-  infoValue: {
-    fontSize: 14,
-    color: '#AAA',
-    fontWeight: '600',
   },
   promptSection: {
     marginBottom: 40,

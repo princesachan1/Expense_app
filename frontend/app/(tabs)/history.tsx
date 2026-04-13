@@ -62,6 +62,17 @@ export default function HistoryScreen() {
     }
   };
 
+  const handleDelete = async (id: number) => {
+    try {
+      const result = await apiService.deleteExpense(id);
+      if (result.success) {
+        loadData();
+      }
+    } catch (error) {
+      Alert.alert("Delete Failed", "Could not delete this expense.");
+    }
+  };
+
   return (
     <View style={styles.container}>
       <LinearGradient colors={['#1a1a1a', '#000000']} style={StyleSheet.absoluteFill} />
@@ -103,6 +114,7 @@ export default function HistoryScreen() {
                 item={item} 
                 index={index} 
                 onPress={() => handleEditPress(item)}
+                onDelete={handleDelete}
               />
             ))
           )}

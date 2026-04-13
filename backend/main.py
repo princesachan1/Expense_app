@@ -1,4 +1,5 @@
 import os
+import json
 import tempfile
 import shutil
 import asyncio
@@ -14,7 +15,7 @@ from pydantic import BaseModel
 
 # Import our modular logic
 from paddle_ocr import perform_ocr
-from spacy_ner import extract_entities
+from spacy_ner import extract_entities, predict_category_from_text
 from regex_logic import apply_fallbacks
 from database import init_db, get_db, Expense, User
 from timing import Timer
@@ -47,6 +48,7 @@ app.add_middleware(
 class UserRegister(BaseModel):
     username: str
     password: str
+    full_name: str = None
 
 # ──────────────────────────────────────────
 # AUTH ENDPOINTS
@@ -65,7 +67,7 @@ def register_user(data: UserRegister, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail="Username already registered")
     
     hashed_pwd = get_password_hash(data.password)
-    new_user = User(username=data.username, hashed_password=hashed_pwd)
+    new_user = User(username=data.username, full_name=data.full_name, hashed_password=hashed_pwd)
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
@@ -93,7 +95,22 @@ def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db:
 
 @app.get("/api/auth/me")
 def read_users_me(current_user: User = Depends(get_current_user)):
-    return {"username": current_user.username, "id": current_user.id}
+    return {
+        "username": current_user.username, 
+        "full_name": current_user.full_name,
+        "id": current_user.id
+    }
+
+@app.put("/api/auth/profile")
+def update_profile(data: dict, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    user = db.query(User).filter(User.id == current_user.id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    if "full_name" in data:
+        user.full_name = data["full_name"]
+        db.commit()
+    return {"success": True, "full_name": user.full_name}
 
 # ──────────────────────────────────────────
 # EXPENSE ENDPOINTS (Protected)
@@ -135,19 +152,39 @@ def save_expense(
 ):
     try:
         total_val = float(str(data.get("total", 0.0)).replace(",", ""))
+        # Serialize items list to JSON string for storage
+        items_raw = data.get("items")
+        items_json = json.dumps(items_raw) if isinstance(items_raw, list) else items_raw
+        
+        # Auto-categorization logic
+        category = data.get("category", "Other")
+        if category in ("Other", "Pending..."):
+            description_text = ""
+            if isinstance(items_raw, list) and items_raw:
+                description_text = " ".join(items_raw)
+            elif isinstance(items_raw, str) and items_raw.strip():
+                description_text = items_raw
+            
+            if description_text:
+                category = predict_category_from_text(description_text)
+                print(f"Auto-categorized '{description_text}' to '{category}'")
+            elif category == "Pending...":
+                category = "Other"  # Don't let 'Pending...' persist in DB
+
         new_expense = Expense(
             user_id=current_user.id,
             merchant=data.get("merchant"),
             total=total_val,
             date=data.get("date"),
-            category=data.get("category", "Other"),
+            category=category,
             gstno=data.get("gstno"),
-            filename=data.get("filename")
+            filename=data.get("filename"),
+            items=items_json
         )
         db.add(new_expense)
         db.commit()
         db.refresh(new_expense)
-        return {"success": True, "id": new_expense.id}
+        return {"success": True, "id": new_expense.id, "category": category}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -157,7 +194,32 @@ def get_expenses(
     current_user: User = Depends(get_current_user)
 ):
     expenses = db.query(Expense).filter(Expense.user_id == current_user.id).order_by(Expense.created_at.desc()).all()
-    return {"success": True, "expenses": expenses}
+    # Parse items JSON strings back into lists for the frontend
+    result = []
+    for exp in expenses:
+        # Safely parse items JSON
+        items_list = []
+        if exp.items:
+            try:
+                parsed = json.loads(exp.items)
+                items_list = parsed if isinstance(parsed, list) else [str(parsed)]
+            except (json.JSONDecodeError, TypeError):
+                items_list = [exp.items] if exp.items.strip() else []
+        
+        exp_dict = {
+            "id": exp.id,
+            "user_id": exp.user_id,
+            "merchant": exp.merchant,
+            "total": exp.total,
+            "date": exp.date,
+            "category": exp.category,
+            "gstno": exp.gstno,
+            "filename": exp.filename,
+            "items": items_list,
+            "created_at": exp.created_at.isoformat() if exp.created_at else None,
+        }
+        result.append(exp_dict)
+    return {"success": True, "expenses": result}
 
 @app.put("/api/expenses/{expense_id}")
 def update_expense(
@@ -176,6 +238,26 @@ def update_expense(
         if "date" in data: expense.date = data["date"]
         if "category" in data: expense.category = data["category"]
         if "gstno" in data: expense.gstno = data["gstno"]
+        if "items" in data:
+            items_raw = data["items"]
+            expense.items = json.dumps(items_raw) if isinstance(items_raw, list) else items_raw
+        db.commit()
+        return {"success": True}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/api/expenses/{expense_id}")
+def delete_expense(
+    expense_id: int, 
+    db: Session = Depends(get_db), 
+    current_user: User = Depends(get_current_user)
+):
+    expense = db.query(Expense).filter(Expense.id == expense_id, Expense.user_id == current_user.id).first()
+    if not expense:
+        raise HTTPException(status_code=404, detail="Expense not found")
+    
+    try:
+        db.delete(expense)
         db.commit()
         return {"success": True}
     except Exception as e:

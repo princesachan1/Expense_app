@@ -2,12 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { 
   View, Text, StyleSheet, Modal, TextInput, 
   TouchableOpacity, KeyboardAvoidingView, Platform, 
-  TouchableWithoutFeedback, Keyboard 
+  TouchableWithoutFeedback, Keyboard, ScrollView 
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
-import { LinearGradient } from 'expo-linear-gradient';
 
 interface EditExpenseModalProps {
   visible: boolean;
@@ -75,6 +74,10 @@ export const EditExpenseModal: React.FC<EditExpenseModalProps> = ({
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
             style={styles.container}
           >
+            <ScrollView 
+              showsVerticalScrollIndicator={false}
+              bounces={false}
+            >
             <View style={styles.content}>
               <View style={styles.header}>
                 <Text style={styles.title}>{title}</Text>
@@ -165,17 +168,46 @@ export const EditExpenseModal: React.FC<EditExpenseModalProps> = ({
                     ))}
                   </View>
                 </View>
+
+                {/* Items / Line Items Section */}
+                {formData?.items && formData.items.length > 0 && (
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.label}>Items / Description</Text>
+                    <View style={styles.itemsList}>
+                      {formData.items.map((item: string, idx: number) => (
+                        <View key={idx} style={styles.itemRow}>
+                          <View style={styles.itemBulletDot} />
+                          <Text style={styles.itemText} numberOfLines={2}>{item}</Text>
+                          <TouchableOpacity
+                            onPress={() => {
+                              const newItems = [...formData.items];
+                              newItems.splice(idx, 1);
+                              setFormData({ ...formData, items: newItems });
+                            }}
+                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                          >
+                            <Ionicons name="close-circle" size={18} color="#555" />
+                          </TouchableOpacity>
+                        </View>
+                      ))}
+                    </View>
+                  </View>
+                )}
               </View>
 
               <TouchableOpacity 
                 style={styles.saveBtn} 
-                onPress={() => onSave(formData)}
+                onPress={() => {
+                  if (formData) onSave(formData);
+                }}
+                disabled={!formData}
               >
                 <View style={[styles.gradient, { backgroundColor: '#FFFFFF' }]}>
                   <Text style={[styles.saveText, { color: '#000000' }]}>Save Changes</Text>
                 </View>
               </TouchableOpacity>
             </View>
+            </ScrollView>
           </KeyboardAvoidingView>
         </View>
       </TouchableWithoutFeedback>
@@ -284,5 +316,29 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 18,
     fontWeight: 'bold',
-  }
+  },
+  itemsList: {
+    backgroundColor: '#222',
+    borderRadius: 16,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#333',
+    gap: 8,
+  },
+  itemRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  itemBulletDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#FFFFFF',
+  },
+  itemText: {
+    color: '#CCC',
+    fontSize: 14,
+    flex: 1,
+  },
 });

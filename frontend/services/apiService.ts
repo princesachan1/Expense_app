@@ -25,6 +25,7 @@ export interface ExpenseRecord {
   date: string;
   category: string;
   gstno?: string;
+  items?: string[];
   created_at: string;
 }
 
@@ -117,6 +118,23 @@ export const apiService = {
       return await response.json();
     } catch (error) {
       console.error("apiService.fetchExpenses Error:", error);
+      throw error;
+    }
+  },
+
+  /**
+   * Deletes an expense by ID.
+   */
+  async deleteExpense(id: number): Promise<{ success: boolean }> {
+    try {
+      const headers = await getHeaders();
+      const response = await fetch(`${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.EXPENSES}/${id}`, {
+        method: 'DELETE',
+        headers,
+      });
+      return await response.json();
+    } catch (error) {
+      console.error("apiService.deleteExpense Error:", error);
       throw error;
     }
   }

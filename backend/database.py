@@ -1,5 +1,5 @@
 import os
-from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, create_engine
+from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Text, create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
 from datetime import datetime
@@ -21,6 +21,7 @@ class User(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     username = Column(String(50), unique=True, index=True, nullable=False)
+    full_name = Column(String(100), nullable=True)
     hashed_password = Column(String(255), nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
 
@@ -37,6 +38,7 @@ class Expense(Base):
     category = Column(String(100), nullable=False, default="Other")
     gstno = Column(String(50), nullable=True)
     filename = Column(String(255), nullable=True)
+    items = Column(Text, nullable=True)  # JSON-stringified list of items
     created_at = Column(DateTime, default=datetime.utcnow)
 
     owner = relationship("User", back_populates="expenses")

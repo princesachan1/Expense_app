@@ -22,9 +22,54 @@ def get_nlp():
             nlp_instance = None
     return nlp_instance
 
+# Strict category list as requested
+ALLOWED_CATEGORIES = [
+    "Groceries", "Fuel & Transport", "Food", "Bills & Utilities", 
+    "Shopping", "Entertainment", "Health", "Education", 
+    "Travel", "Personal Care", "Other"
+]
+
+def predict_category_from_text(text: str):
+    """
+    Predicts one of the 11 strict categories from a text description.
+    """
+    if not text or len(text.strip()) < 2:
+        return "Other"
+
+    nlp = get_nlp()
+    if not nlp:
+        return "Other"
+
+    doc = nlp(text)
+    
+    if doc.cats:
+        # Get the highest scoring category from the model
+        predicted = max(doc.cats, key=doc.cats.get)
+        
+        # Exact match check (case-insensitive)
+        for cat in ALLOWED_CATEGORIES:
+            if cat.lower() == predicted.lower():
+                return cat
+                
+    # Fallback to simple keyword matching if model is unsure or prediction is invalid
+    text_lower = text.lower()
+    if any(k in text_lower for k in ["grocery", "milk", "bread", "supermarket"]): return "Groceries"
+    if any(k in text_lower for k in ["fuel", "petrol", "diesel", "uber", "taxi", "ola"]): return "Fuel & Transport"
+    if any(k in text_lower for k in ["food", "dinner", "lunch", "restaurant", "swiggy", "zomato", "pizza"]): return "Food"
+    if any(k in text_lower for k in ["bill", "electricity", "water", "recharge", "utility"]): return "Bills & Utilities"
+    if any(k in text_lower for k in ["shop", "amazon", "flipkart", "clothes", "mall"]): return "Shopping"
+    if any(k in text_lower for k in ["movie", "pvr", "netflix", "game", "show"]): return "Entertainment"
+    if any(k in text_lower for k in ["health", "med", "doctor", "pharmacy", "hospital"]): return "Health"
+    if any(k in text_lower for k in ["school", "fee", "course", "book", "education"]): return "Education"
+    if any(k in text_lower for k in ["travel", "flight", "hotel", "train", "ticket"]): return "Travel"
+    if any(k in text_lower for k in ["beauty", "salon", "soap", "care"]): return "Personal Care"
+
+    return "Other"
+
 def extract_entities(extracted_lines):
     """
-    Uses the spaCy model to extract structured data from OCR text lines.
+    Uses the custom spaCy model to extract structured data from OCR text lines.
+    Returns (structured_data, full_text).
     """
     structured_data = {
         "merchant": None,
@@ -50,15 +95,21 @@ def extract_entities(extracted_lines):
         elif label == "DATE": structured_data["date"] = ent.text
         elif label == "ITEM": structured_data["items"].append(ent.text)
     
-    # Predict the best category
+    # Predict the best category and ensure it's in the allowed list
     if doc.cats:
-        structured_data["category"] = max(doc.cats, key=doc.cats.get)
+        raw_pred = max(doc.cats, key=doc.cats.get)
+        matched = False
+        for cat in ALLOWED_CATEGORIES:
+            if cat.lower() == raw_pred.lower():
+                structured_data["category"] = cat
+                matched = True
+                break
+        if not matched:
+            structured_data["category"] = "Other"
 
     # --- NEW: Merchant Fallback (Top Line) ---
-    # If the AI missed the merchant, the first line is usually the brand
     if not structured_data["merchant"] and extracted_lines:
         first_line = extracted_lines[0].strip()
-        # Basic cleanup: ignore lines that are too short or just symbols
         if len(first_line) > 2:
             structured_data["merchant"] = first_line
         

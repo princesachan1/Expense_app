@@ -12,7 +12,6 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
 import { BlurView } from 'expo-blur';
-import * as Notifications from 'expo-notifications';
 
 const { RNAndroidNotificationListener } = NativeModules;
 
@@ -49,23 +48,6 @@ function parseExpenseDate(raw: string | undefined | null): Date | null {
   const d = new Date(year, month, day);
   return isNaN(d.getTime()) ? null : d;
 }
-
-// ──────────────────────────────────────────
-// Category icon mapping
-// ──────────────────────────────────────────
-const CATEGORY_ICONS: Record<string, string> = {
-  'Groceries': 'basket',
-  'Fuel & Transport': 'car',
-  'Food': 'fast-food',
-  'Bills & Utilities': 'flash',
-  'Shopping': 'cart',
-  'Entertainment': 'film',
-  'Health': 'medkit',
-  'Education': 'school',
-  'Travel': 'airplane',
-  'Personal Care': 'body',
-  'Other': 'ellipsis-horizontal',
-};
 
 // ──────────────────────────────────────────
 // Component
@@ -331,6 +313,16 @@ export default function HomeScreen() {
                 item={item}
                 index={index}
                 onPress={() => router.push('/history')}
+                onDelete={async (id) => {
+                  try {
+                    const result = await apiService.deleteExpense(id);
+                    if (result.success) {
+                      loadHistory();
+                    }
+                  } catch (e) {
+                    Alert.alert('Error', 'Failed to delete expense.');
+                  }
+                }}
               />
             ))
           )}

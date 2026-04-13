@@ -2,8 +2,9 @@ import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native
 import { Stack, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
-import { AppRegistry, Platform } from 'react-native';
+import { AppRegistry, Platform, Alert } from 'react-native';
 import 'react-native-reanimated';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import * as Notifications from 'expo-notifications';
 import { RNAndroidNotificationListenerHeadlessJsName } from 'react-native-android-notification-listener';
 
@@ -51,8 +52,8 @@ export default function RootLayout() {
   const router = useRouter();
 
   useEffect(() => {
-    // Handle notification clicks globally
-    const subscription = Notifications.addNotificationResponseReceivedListener(response => {
+    // 1. Reusable handler for notification responses
+    const handleNotificationResponse = (response: Notifications.NotificationResponse) => {
       const data = response.notification.request.content.data;
       if (data.type === 'transaction_detected') {
         const amount = String(data.amount || '');
@@ -60,20 +61,59 @@ export default function RootLayout() {
         const date = String(data.date || '');
         router.push(`/quick-add?amount=${encodeURIComponent(amount)}&merchant=${encodeURIComponent(merchant)}&date=${encodeURIComponent(date)}` as any);
       }
+    };
+
+    // Handle clicks when app is in foreground/background (warm start)
+    const subscription = Notifications.addNotificationResponseReceivedListener(handleNotificationResponse);
+
+    // Handle clicks that launched the app (cold start)
+    Notifications.getLastNotificationResponseAsync().then(response => {
+      if (response) {
+        handleNotificationResponse(response);
+      }
     });
+
+    // 2. Initial permission checks
+    const checkPermissions = async () => {
+      // A. Standard Push Notifications
+      const { status: existingStatus } = await Notifications.getPermissionsAsync();
+      if (existingStatus !== 'granted') {
+        await Notifications.requestPermissionsAsync();
+      }
+      
+      // B. Banking SMS Notification Listener (Android Only)
+      if (Platform.OS === 'android') {
+        const status = await SmsService.checkPermissionStatus();
+        if (status !== 'authorized' && status !== 'not_available') {
+          Alert.alert(
+            "Tracking Disabled",
+            "Automatic expense tracking requires Notification Access. Would you like to enable it now?",
+            [
+              { text: "Later", style: "cancel" },
+              { text: "Enable", onPress: () => SmsService.requestPermission() }
+            ]
+          );
+        }
+      }
+    };
+
+    checkPermissions();
 
     return () => subscription.remove();
   }, []);
 
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <Stack screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="auth/login" />
-        <Stack.Screen name="auth/signup" />
-        <Stack.Screen name="(tabs)" />
-        <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
-      </Stack>
-      <StatusBar style="auto" />
-    </ThemeProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+        <Stack screenOptions={{ headerShown: false }}>
+          <Stack.Screen name="auth/login" />
+          <Stack.Screen name="auth/signup" />
+          <Stack.Screen name="(tabs)" />
+          <Stack.Screen name="quick-add" options={{ presentation: 'modal', title: 'Add Expense' }} />
+          <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
+        </Stack>
+        <StatusBar style="auto" />
+      </ThemeProvider>
+    </GestureHandlerRootView>
   );
 }

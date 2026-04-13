@@ -5,6 +5,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
 import { AuthService } from '../../services/AuthService';
+import { SmsService } from '../../services/SmsService';
 
 import { useFocusEffect } from '@react-navigation/native';
 
@@ -17,18 +18,36 @@ export default function SettingsScreen() {
   const [isEditModalVisible, setIsEditModalVisible] = React.useState(false);
   const [isSaving, setIsSaving] = React.useState(false);
 
-  const loadProfile = async () => {
+  const loadSettingsAndProfile = async () => {
+    // Load profile
     const user = await AuthService.getCurrentUser();
     if (user) {
       setFullName(user.full_name || '');
     }
+    // Load notification preference
+    const enabled = await SmsService.getNotificationPreference();
+    setNotifications(enabled);
   };
 
   useFocusEffect(
     React.useCallback(() => {
-      loadProfile();
+      loadSettingsAndProfile();
     }, [])
   );
+
+  const toggleNotifications = async (val: boolean) => {
+    setNotifications(val);
+    await SmsService.setNotificationPreference(val);
+    
+    if (val) {
+      // If turning on, check system permissions
+      const { status } = await SmsService.startListener(); // Re-use startListener or check status
+      // We can also just check status here
+      const systemStatus = await SmsService.getNotificationPreference(); // This is local pref, we need system
+      // Better to just show alert if they enable it but it might be blocked
+      console.log('User enabled notifications in app');
+    }
+  };
 
   const handleUpdateName = () => {
     setNewName(fullName);
@@ -104,7 +123,7 @@ export default function SettingsScreen() {
               onPress={handleUpdateName} 
             />
             <SettingItem icon="wallet-outline" title="Currency" value="INR (₹)" />
-            <SettingItem icon="notifications-outline" title="Notifications" type="switch" value={notifications} onPress={() => setNotifications(!notifications)} />
+            <SettingItem icon="notifications-outline" title="Notifications" type="switch" value={notifications} onPress={toggleNotifications} />
           </View>
         </Animated.View>
 

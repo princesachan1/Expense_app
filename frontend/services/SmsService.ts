@@ -5,6 +5,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 const { RNAndroidNotificationListener } = NativeModules;
 
 const STORE_KEY = '@last_detected_transaction';
+const NOTIFICATION_PREF_KEY = '@notifications_enabled';
 
 // Common SMS App Package Names
 const SMS_PACKAGES = [
@@ -58,16 +59,31 @@ export const SmsService = {
   },
 
   /**
-   * Starts initialization logic (permission checks etc)
+   * Checks the current system permission for notification listening.
+   * Returns 'authorized' or 'denied'.
+   */
+  async checkPermissionStatus(): Promise<string> {
+    if (!RNAndroidNotificationListener || typeof RNAndroidNotificationListener.getPermissionStatus !== 'function') {
+      return 'not_available';
+    }
+    return await RNAndroidNotificationListener.getPermissionStatus();
+  },
+
+  /**
+   * Opens the system settings to grant permission.
+   */
+  requestPermission() {
+    if (RNAndroidNotificationListener && typeof RNAndroidNotificationListener.requestPermission === 'function') {
+      RNAndroidNotificationListener.requestPermission();
+    }
+  },
+
+  /**
+   * Legacy method for starting (can be removed later if unused)
    */
   startListener() {
-    if (!RNAndroidNotificationListener || typeof RNAndroidNotificationListener.getPermissionStatus !== 'function') {
-      console.warn('SmsService: Notification Listener native module is not available. Are you using Expo Go? This feature requires a Development Build.');
-      return;
-    }
-
-    RNAndroidNotificationListener.getPermissionStatus().then((status: string) => {
-      console.log('SmsService: Notification Permission Status:', status);
+    this.checkPermissionStatus().then(status => {
+      console.log('SmsService: Permission Status:', status);
     });
   },
 
@@ -118,16 +134,26 @@ export const SmsService = {
    */
   async handleDetectedTransaction(tx: TransactionData) {
     try {
-      // Save for the QuickAdd screen
-      await AsyncStorage.setItem(STORE_KEY, JSON.stringify(tx));
-
-      // Request notification permission (needed on Android 13+)
-      const { status } = await Notifications.getPermissionsAsync();
-      if (status !== 'granted') {
-        await Notifications.requestPermissionsAsync();
+      // 1. Check user preference first
+      const isEnabled = await this.getNotificationPreference();
+      if (!isEnabled) {
+        console.log('SmsService: Notifications are disabled in app settings. Skipping alert.');
+        // We still save the transaction so they can see it in Quick Add later if they open it
+        await AsyncStorage.setItem(STORE_KEY, JSON.stringify(tx));
+        return;
       }
 
-      // Trigger local notification on the banking-alerts channel
+      // 2. Save for the QuickAdd screen
+      await AsyncStorage.setItem(STORE_KEY, JSON.stringify(tx));
+
+      // 3. Request notification permission (needed on Android 13+)
+      const { status } = await Notifications.getPermissionsAsync();
+      if (status !== 'granted') {
+        const { status: finalStatus } = await Notifications.requestPermissionsAsync();
+        if (finalStatus !== 'granted') return;
+      }
+
+      // 4. Trigger local notification on the banking-alerts channel
       await Notifications.scheduleNotificationAsync({
         content: {
           title: "💰 Payment Detected",
@@ -141,6 +167,24 @@ export const SmsService = {
       console.log('Processed Banking SMS:', tx);
     } catch (e) {
       console.error('Error handling transaction:', e);
+    }
+  },
+
+  async getNotificationPreference(): Promise<boolean> {
+    try {
+      const val = await AsyncStorage.getItem(NOTIFICATION_PREF_KEY);
+      // Default to true if not set
+      return val === null ? true : val === 'true';
+    } catch (e) {
+      return true;
+    }
+  },
+
+  async setNotificationPreference(enabled: boolean) {
+    try {
+      await AsyncStorage.setItem(NOTIFICATION_PREF_KEY, enabled.toString());
+    } catch (e) {
+      console.error('Error saving notification preference:', e);
     }
   },
 
