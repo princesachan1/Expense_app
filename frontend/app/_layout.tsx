@@ -6,10 +6,13 @@ import { AppRegistry, Platform, Alert } from 'react-native';
 import 'react-native-reanimated';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import * as Notifications from 'expo-notifications';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { RNAndroidNotificationListenerHeadlessJsName } from 'react-native-android-notification-listener';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { SmsService } from '../services/SmsService';
+
+const HANDLED_NOTIFICATION_KEY = '@last_handled_notification_id';
 
 // 1. Tell expo-notifications to SHOW notifications even when app is in foreground
 Notifications.setNotificationHandler({
@@ -64,11 +67,24 @@ export default function RootLayout() {
     };
 
     // Handle clicks when app is in foreground/background (warm start)
-    const subscription = Notifications.addNotificationResponseReceivedListener(handleNotificationResponse);
+    // Also mark these as handled so cold-start check skips them
+    const subscription = Notifications.addNotificationResponseReceivedListener(async (response) => {
+      const notifId = response.notification.request.identifier;
+      await AsyncStorage.setItem(HANDLED_NOTIFICATION_KEY, notifId);
+      handleNotificationResponse(response);
+    });
 
     // Handle clicks that launched the app (cold start)
-    Notifications.getLastNotificationResponseAsync().then(response => {
+    // Guard: only process if we haven't already handled this exact notification
+    Notifications.getLastNotificationResponseAsync().then(async (response) => {
       if (response) {
+        const notifId = response.notification.request.identifier;
+        const lastHandled = await AsyncStorage.getItem(HANDLED_NOTIFICATION_KEY);
+        if (lastHandled === notifId) {
+          console.log('RootLayout: Cold-start notification already handled, skipping.');
+          return;
+        }
+        await AsyncStorage.setItem(HANDLED_NOTIFICATION_KEY, notifId);
         handleNotificationResponse(response);
       }
     });
