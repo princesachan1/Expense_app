@@ -6,6 +6,8 @@ const { RNAndroidNotificationListener } = NativeModules;
 
 const STORE_KEY = '@last_detected_transaction';
 const NOTIFICATION_PREF_KEY = '@notifications_enabled';
+const PROCESSED_KEYS = '@processed_transaction_keys';
+const LAST_NOTIFICATION_ID = '@last_notification_id';
 
 // Common SMS App Package Names
 const SMS_PACKAGES = [
@@ -130,39 +132,58 @@ export const SmsService = {
   },
 
   /**
+   * Generates a unique key for a transaction to prevent duplicates.
+   */
+  generateTxKey(tx: TransactionData) {
+    return `${tx.amount}_${tx.merchant}_${tx.originalText.slice(0, 50)}`.replace(/\s/g, '_');
+  },
+
+  /**
    * Saves the detected transaction and alerts the user.
    */
   async handleDetectedTransaction(tx: TransactionData) {
     try {
-      // 1. Check user preference first
+      // 1. Deduplication check
+      const txKey = this.generateTxKey(tx);
+      const processed = await AsyncStorage.getItem(PROCESSED_KEYS);
+      const processedList: string[] = processed ? JSON.parse(processed) : [];
+      
+      if (processedList.includes(txKey)) {
+        console.log('SmsService: Transaction already processed. Skipping.');
+        return;
+      }
+
+      // 2. Check user preference
       const isEnabled = await this.getNotificationPreference();
       if (!isEnabled) {
         console.log('SmsService: Notifications are disabled in app settings. Skipping alert.');
-        // We still save the transaction so they can see it in Quick Add later if they open it
         await AsyncStorage.setItem(STORE_KEY, JSON.stringify(tx));
         return;
       }
 
-      // 2. Save for the QuickAdd screen
+      // 3. Save for the QuickAdd screen
       await AsyncStorage.setItem(STORE_KEY, JSON.stringify(tx));
 
-      // 3. Request notification permission (needed on Android 13+)
+      // 4. Request notification permission (needed on Android 13+)
       const { status } = await Notifications.getPermissionsAsync();
       if (status !== 'granted') {
         const { status: finalStatus } = await Notifications.requestPermissionsAsync();
         if (finalStatus !== 'granted') return;
       }
 
-      // 4. Trigger local notification on the banking-alerts channel
-      await Notifications.scheduleNotificationAsync({
+      // 5. Trigger local notification
+      const notificationId = await Notifications.scheduleNotificationAsync({
         content: {
           title: "💰 Payment Detected",
           body: `Spent ₹${tx.amount} at ${tx.merchant}. Tap to categorize!`,
           data: { type: 'transaction_detected', ...tx },
           sound: 'default',
         },
-        trigger: null, // Show immediately
+        trigger: null,
       });
+
+      // Save notification ID so we can dismiss it later
+      await AsyncStorage.setItem(LAST_NOTIFICATION_ID, notificationId);
       
       console.log('Processed Banking SMS:', tx);
     } catch (e) {
@@ -195,5 +216,34 @@ export const SmsService = {
 
   async clearLastTransaction() {
     await AsyncStorage.removeItem(STORE_KEY);
+  },
+
+  async markAsProcessed(tx: TransactionData) {
+    try {
+      const txKey = this.generateTxKey(tx);
+      const processed = await AsyncStorage.getItem(PROCESSED_KEYS);
+      const processedList: string[] = processed ? JSON.parse(processed) : [];
+      
+      if (!processedList.includes(txKey)) {
+        processedList.push(txKey);
+        // Keep only last 50 transactions to manage storage
+        const limitedList = processedList.slice(-50);
+        await AsyncStorage.setItem(PROCESSED_KEYS, JSON.stringify(limitedList));
+      }
+    } catch (e) {
+      console.error('Error marking transaction as processed:', e);
+    }
+  },
+
+  async dismissTransactionNotification() {
+    try {
+      const notificationId = await AsyncStorage.getItem(LAST_NOTIFICATION_ID);
+      if (notificationId) {
+        await Notifications.dismissNotificationAsync(notificationId);
+        await AsyncStorage.removeItem(LAST_NOTIFICATION_ID);
+      }
+    } catch (e) {
+      console.error('Error dismissing notification:', e);
+    }
   }
 };

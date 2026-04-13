@@ -21,6 +21,7 @@ export default function QuickAddScreen() {
     date: new Date().toISOString().split('T')[0],
     description: ''
   });
+  const [txData, setTxData] = useState<any>(null);
 
   // Track initialization to prevent re-render loops
   const initialized = React.useRef(false);
@@ -35,6 +36,12 @@ export default function QuickAddScreen() {
         merchant: params.merchant as string || 'Bank SMS',
         date: params.date as string || new Date().toISOString().split('T')[0],
       }));
+      setTxData({
+        amount: params.amount,
+        merchant: params.merchant,
+        date: params.date,
+        originalText: params.originalText || ''
+      });
       initialized.current = true;
     } else {
       SmsService.getLastTransaction().then(tx => {
@@ -45,6 +52,7 @@ export default function QuickAddScreen() {
             merchant: tx.merchant,
             date: tx.date,
           }));
+          setTxData(tx);
           initialized.current = true;
         }
       });
@@ -77,6 +85,10 @@ export default function QuickAddScreen() {
 
       if (result.success) {
         await SmsService.clearLastTransaction();
+        if (txData) {
+          await SmsService.markAsProcessed(txData);
+          await SmsService.dismissTransactionNotification();
+        }
         Alert.alert('Success', 'Expense categorized and saved!');
         router.replace('/(tabs)/history');
       }
@@ -140,8 +152,12 @@ export default function QuickAddScreen() {
 
         <TouchableOpacity 
           style={styles.ignoreBtn} 
-          onPress={() => {
-            SmsService.clearLastTransaction();
+          onPress={async () => {
+            await SmsService.clearLastTransaction();
+            if (txData) {
+              await SmsService.markAsProcessed(txData);
+              await SmsService.dismissTransactionNotification();
+            }
             router.back();
           }}
         >

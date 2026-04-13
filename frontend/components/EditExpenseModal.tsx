@@ -23,7 +23,12 @@ export const EditExpenseModal: React.FC<EditExpenseModalProps> = ({
   const [showDatePicker, setShowDatePicker] = useState(false);
 
   useEffect(() => {
-    setFormData(initialData);
+    if (initialData) {
+      setFormData({
+        ...initialData,
+        items: initialData.items || []
+      });
+    }
   }, [initialData, visible]);
 
   const onDateChange = (event: any, selectedDate?: Date) => {
@@ -170,29 +175,49 @@ export const EditExpenseModal: React.FC<EditExpenseModalProps> = ({
                 </View>
 
                 {/* Items / Line Items Section */}
-                {formData?.items && formData.items.length > 0 && (
-                  <View style={styles.inputGroup}>
-                    <Text style={styles.label}>Items / Description</Text>
-                    <View style={styles.itemsList}>
-                      {formData.items.map((item: string, idx: number) => (
-                        <View key={idx} style={styles.itemRow}>
-                          <View style={styles.itemBulletDot} />
-                          <Text style={styles.itemText} numberOfLines={2}>{item}</Text>
-                          <TouchableOpacity
-                            onPress={() => {
-                              const newItems = [...formData.items];
-                              newItems.splice(idx, 1);
-                              setFormData({ ...formData, items: newItems });
-                            }}
-                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                          >
-                            <Ionicons name="close-circle" size={18} color="#555" />
-                          </TouchableOpacity>
-                        </View>
-                      ))}
-                    </View>
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>Items / Description</Text>
+                  <View style={styles.itemsList}>
+                    {formData?.items?.map((item: string, idx: number) => (
+                      <View key={idx} style={styles.itemRow}>
+                        <View style={styles.itemBulletDot} />
+                        <TextInput
+                          style={styles.itemInput}
+                          value={item}
+                          onChangeText={(text) => {
+                            const newItems = [...formData.items];
+                            newItems[idx] = text;
+                            setFormData({ ...formData, items: newItems });
+                          }}
+                          placeholder="Item description"
+                          placeholderTextColor="#444"
+                          multiline={false}
+                        />
+                        <TouchableOpacity
+                          onPress={() => {
+                            const newItems = [...formData.items];
+                            newItems.splice(idx, 1);
+                            setFormData({ ...formData, items: newItems });
+                          }}
+                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        >
+                          <Ionicons name="close-circle" size={18} color="#FF5252" />
+                        </TouchableOpacity>
+                      </View>
+                    ))}
+
+                    <TouchableOpacity 
+                      style={styles.addItemBtn} 
+                      onPress={() => {
+                        const newItems = [...(formData?.items || []), ''];
+                        setFormData({ ...formData, items: newItems });
+                      }}
+                    >
+                      <Ionicons name="add-circle-outline" size={20} color="#FFFFFF" />
+                      <Text style={styles.addItemText}>Add Item</Text>
+                    </TouchableOpacity>
                   </View>
-                )}
+                </View>
               </View>
 
               <TouchableOpacity 
@@ -340,5 +365,25 @@ const styles = StyleSheet.create({
     color: '#CCC',
     fontSize: 14,
     flex: 1,
+  },
+  itemInput: {
+    color: '#FFF',
+    fontSize: 14,
+    flex: 1,
+    paddingVertical: 4,
+  },
+  addItemBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#333',
+    marginTop: 4,
+  },
+  addItemText: {
+    color: '#FFF',
+    fontSize: 14,
+    fontWeight: '600',
   },
 });
