@@ -24,7 +24,6 @@ frontend/build/
 frontend/*.log
 frontend/web-build/
 frontend/.expo-shared/
-frontend/constants/Config.ts
 
 # Android/iOS builds
 frontend/android/

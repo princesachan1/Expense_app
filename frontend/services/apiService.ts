@@ -1,4 +1,4 @@
-import { API_CONFIG } from '../constants/Config';
+import { API_CONFIG } from '../constants/config';
 import { AuthService } from './AuthService';
 
 export interface StructuredData {

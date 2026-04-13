@@ -4,6 +4,7 @@ import {
   TouchableOpacity, KeyboardAvoidingView, Platform, 
   TouchableWithoutFeedback, Keyboard 
 } from 'react-native';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -20,10 +21,43 @@ export const EditExpenseModal: React.FC<EditExpenseModalProps> = ({
   visible, onClose, onSave, initialData, title = "Edit Expense" 
 }) => {
   const [formData, setFormData] = useState(initialData);
+  const [showDatePicker, setShowDatePicker] = useState(false);
 
   useEffect(() => {
     setFormData(initialData);
   }, [initialData, visible]);
+
+  const onDateChange = (event: any, selectedDate?: Date) => {
+    setShowDatePicker(false);
+    if (selectedDate) {
+      // Store in YYYY-MM-DD format
+      const year = selectedDate.getFullYear();
+      const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
+      const day = String(selectedDate.getDate()).padStart(2, '0');
+      const dateString = `${year}-${month}-${day}`;
+      setFormData({ ...formData, date: dateString });
+    }
+  };
+
+  const parseDate = (dateStr: string) => {
+    if (!dateStr) return new Date();
+    const parts = dateStr.split('-');
+    if (parts.length === 3) {
+      // YYYY-MM-DD
+      return new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+    }
+    return new Date();
+  };
+
+  const formatDateDisplay = (dateStr: string) => {
+    if (!dateStr) return 'Select Date';
+    const parts = dateStr.split('-');
+    if (parts.length === 3) {
+      // Display as DD/MM/YYYY
+      return `${parts[2]}/${parts[1]}/${parts[0]}`;
+    }
+    return dateStr;
+  };
 
   if (!visible) return null;
 
@@ -74,12 +108,25 @@ export const EditExpenseModal: React.FC<EditExpenseModalProps> = ({
 
                 <View style={styles.inputGroup}>
                   <Text style={styles.label}>Date</Text>
-                  <TextInput
-                    style={styles.input}
-                    value={formData?.date}
-                    onChangeText={(text) => setFormData({ ...formData, date: text })}
-                    placeholderTextColor="#444"
-                  />
+                  <TouchableOpacity 
+                    style={styles.input} 
+                    onPress={() => setShowDatePicker(true)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[styles.dateText, !formData?.date && { color: '#444' }]}>
+                      {formatDateDisplay(formData?.date)}
+                    </Text>
+                    <Ionicons name="calendar-outline" size={20} color="#777" />
+                  </TouchableOpacity>
+
+                  {showDatePicker && (
+                    <DateTimePicker
+                      value={parseDate(formData?.date)}
+                      mode="date"
+                      display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                      onChange={onDateChange}
+                    />
+                  )}
                 </View>
 
                 <View style={styles.inputGroup}>
@@ -124,14 +171,9 @@ export const EditExpenseModal: React.FC<EditExpenseModalProps> = ({
                 style={styles.saveBtn} 
                 onPress={() => onSave(formData)}
               >
-                <LinearGradient
-                  colors={['#4CAF50', '#2E7D32']}
-                  style={styles.gradient}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                >
-                  <Text style={styles.saveText}>Save Changes</Text>
-                </LinearGradient>
+                <View style={[styles.gradient, { backgroundColor: '#FFFFFF' }]}>
+                  <Text style={[styles.saveText, { color: '#000000' }]}>Save Changes</Text>
+                </View>
               </TouchableOpacity>
             </View>
           </KeyboardAvoidingView>
@@ -194,6 +236,13 @@ const styles = StyleSheet.create({
     fontSize: 16,
     borderWidth: 1,
     borderColor: '#333',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  dateText: {
+    color: '#fff',
+    fontSize: 16,
   },
   categoryRow: {
     flexDirection: 'row',
@@ -210,15 +259,15 @@ const styles = StyleSheet.create({
     borderColor: '#333',
   },
   activeChip: {
-    borderColor: '#4CAF50',
-    backgroundColor: 'rgba(76, 175, 80, 0.1)',
+    borderColor: '#FFFFFF',
+    backgroundColor: '#333333',
   },
   catText: {
     color: '#AAA',
     fontSize: 14,
   },
   activeCatText: {
-    color: '#4CAF50',
+    color: '#FFFFFF',
     fontWeight: 'bold',
   },
   saveBtn: {

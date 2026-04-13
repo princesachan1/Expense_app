@@ -68,7 +68,7 @@ export default function HistoryScreen() {
 
       <ScrollView 
         contentContainerStyle={styles.scroll} 
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#4CAF50" />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#FFFFFF" />}
       >
         <Animated.View entering={FadeInDown.delay(100)} style={styles.header}>
           <Text style={styles.title}>History 📊</Text>
@@ -90,7 +90,7 @@ export default function HistoryScreen() {
         <View style={styles.list}>
           <Text style={styles.sectionTitle}>Transactions</Text>
           {isLoading && !refreshing ? (
-            <ActivityIndicator size="large" color="#4CAF50" style={{ marginTop: 20 }} />
+            <ActivityIndicator size="large" color="#FFFFFF" style={{ marginTop: 20 }} />
           ) : expenses.length === 0 ? (
             <View style={styles.empty}>
               <Ionicons name="receipt-outline" size={64} color="#333" />

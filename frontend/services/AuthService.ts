@@ -1,5 +1,5 @@
 import * as SecureStore from 'expo-secure-store';
-import { API_CONFIG } from '../constants/Config';
+import { API_CONFIG } from '../constants/config';
 
 const TOKEN_KEY = 'user_auth_token';
 const REQUEST_TIMEOUT = 10000; // 10 seconds
@@ -7,7 +7,7 @@ const REQUEST_TIMEOUT = 10000; // 10 seconds
 async function fetchWithTimeout(url: string, options: any = {}) {
   const controller = new AbortController();
   const id = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
-  
+
   try {
     const response = await fetch(url, {
       ...options,
@@ -25,12 +25,12 @@ async function fetchWithTimeout(url: string, options: any = {}) {
 }
 
 export const AuthService = {
-  async register(username: string, password: string) {
+  async register(username: string, password: string, fullName: string) {
     try {
       const response = await fetchWithTimeout(`${API_CONFIG.BASE_URL}/api/auth/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password }),
+        body: JSON.stringify({ username, password, full_name: fullName }),
       });
       return await response.json();
     } catch (error: any) {
@@ -81,15 +81,34 @@ export const AuthService = {
       const response = await fetchWithTimeout(`${API_CONFIG.BASE_URL}/api/auth/me`, {
         headers: { 'Authorization': `Bearer ${token}` },
       });
-      
+
       if (response.status === 401) {
         await this.logout();
         return null;
       }
-      
+
       return await response.json();
     } catch (error) {
       return null;
+    }
+  },
+
+  async updateProfile(fullName: string) {
+    const token = await this.getToken();
+    if (!token) return { success: false, detail: 'Not authenticated' };
+
+    try {
+      const response = await fetchWithTimeout(`${API_CONFIG.BASE_URL}/api/auth/profile`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ full_name: fullName }),
+      });
+      return await response.json();
+    } catch (error: any) {
+      return { success: false, detail: error.message };
     }
   }
 };

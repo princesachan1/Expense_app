@@ -27,8 +27,8 @@ export const ExpenseCard: React.FC<ExpenseCardProps> = ({ data, onSave }) => {
       style={styles.card}
     >
       <View style={styles.cardHeader}>
-        <View style={styles.merchantIconBg}>
-          <Ionicons name="business" size={24} color="#4CAF50" />
+        <View style={[styles.merchantIconBg, { backgroundColor: '#333333' }]}>
+          <Ionicons name="business" size={24} color="#FFFFFF" />
         </View>
         <View style={styles.merchantInfo}>
           <Text style={styles.merchantLabel}>Merchant</Text>
@@ -131,7 +131,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   categoryText: {
-    color: '#4CAF50',
+    color: '#FFFFFF',
     fontSize: 12,
     fontWeight: 'bold',
   },
@@ -187,7 +187,7 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   itemBullet: {
-    color: '#4CAF50',
+    color: '#FFFFFF',
     marginRight: 8,
     fontWeight: 'bold',
   },

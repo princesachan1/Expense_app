@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import {
   View, Text, StyleSheet, TextInput, TouchableOpacity,
   ActivityIndicator, Alert, KeyboardAvoidingView, Platform,
-  Dimensions
+  Dimensions, Image
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -49,14 +49,12 @@ export default function LoginScreen() {
       >
         <Animated.View entering={FadeInUp.delay(200).duration(800)} style={styles.header}>
           <View style={styles.logoContainer}>
-            <LinearGradient
-              colors={['#4CAF50', '#2E7D32']}
-              style={styles.logoGradient}
-            >
-              <Ionicons name="wallet-outline" size={40} color="#fff" />
-            </LinearGradient>
+            <Image 
+              source={require('../../assets/images/icon.png')} 
+              style={styles.logoImage}
+            />
           </View>
-          <Text style={styles.title}>Expense AI</Text>
+          <Text style={styles.title}>InstantLedger</Text>
           <Text style={styles.subtitle}>Smart tracking for your finances</Text>
         </Animated.View>
 
@@ -90,18 +88,13 @@ export default function LoginScreen() {
             onPress={handleLogin}
             disabled={isLoading}
           >
-            <LinearGradient
-              colors={['#4CAF50', '#2E7D32']}
-              style={styles.buttonGradient}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-            >
+            <View style={[styles.buttonGradient, { backgroundColor: '#FFFFFF' }]}>
               {isLoading ? (
-                <ActivityIndicator color="#fff" />
+                <ActivityIndicator color="#000" />
               ) : (
                 <Text style={styles.loginButtonText}>Login</Text>
               )}
-            </LinearGradient>
+            </View>
           </TouchableOpacity>
 
           <View style={styles.footer}>
@@ -127,12 +120,12 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     marginBottom: 20,
     elevation: 20,
-    shadowColor: '#4CAF50',
+    shadowColor: '#FFFFFF',
     shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.3,
+    shadowOpacity: 0.2,
     shadowRadius: 20,
   },
-  logoGradient: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  logoImage: { width: '100%', height: '100%' },
   title: { fontSize: 32, fontWeight: 'bold', color: '#fff' },
   subtitle: { fontSize: 16, color: '#888', marginTop: 8 },
   form: { width: '100%' },
@@ -155,18 +148,18 @@ const styles = StyleSheet.create({
     marginTop: 10,
     overflow: 'hidden',
     elevation: 8,
-    shadowColor: '#4CAF50',
+    shadowColor: '#FFFFFF',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
+    shadowOpacity: 0.2,
     shadowRadius: 8,
   },
   buttonGradient: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  loginButtonText: { color: '#fff', fontSize: 18, fontWeight: 'bold' },
+  loginButtonText: { color: '#000', fontSize: 18, fontWeight: 'bold' },
   footer: {
     flexDirection: 'row',
     justifyContent: 'center',
     marginTop: 24,
   },
   footerText: { color: '#888', fontSize: 14 },
-  signupText: { color: '#4CAF50', fontSize: 14, fontWeight: 'bold' },
+  signupText: { color: '#FFFFFF', fontSize: 14, fontWeight: 'bold' },
 });

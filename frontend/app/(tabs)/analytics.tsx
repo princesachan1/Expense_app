@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useEffect, useRef, JSX } from 'react';
 import {
   StyleSheet, View, Text, ScrollView, Dimensions,
   ActivityIndicator, TouchableOpacity,
@@ -52,8 +52,8 @@ function parseExpenseDate(raw: string | undefined | null): Date | null {
 // Category colours (11 slots)
 // ──────────────────────────────────────────
 const CAT_COLORS = [
-  '#4CAF50', '#FF9800', '#F44336', '#2196F3', '#9C27B0',
-  '#FFEB3B', '#E91E63', '#00BCD4', '#FF5722', '#8BC34A', '#607D8B',
+  '#FFFFFF', '#E0E0E0', '#BDBDBD', '#9E9E9E', '#757575',
+  '#616161', '#424242', '#FAFAFA', '#EEEEEE', '#D6D6D6', '#888888',
 ];
 const getCatColor = (i: number) => CAT_COLORS[i % CAT_COLORS.length];
 
@@ -199,7 +199,7 @@ export default function AnalyticsScreen() {
           style={[
             styles.calCell,
             { width: cellSize, height: cellSize + 12 },
-            hasData && { backgroundColor: `rgba(76,175,80,${intensity * 0.6})` },
+            hasData && { backgroundColor: `rgba(255,255,255,${intensity * 0.8})` },
             isToday && styles.calToday,
             isSelected && styles.calSelected,
           ]}
@@ -259,7 +259,7 @@ export default function AnalyticsScreen() {
             style={styles.yearArrow}
             hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
           >
-            <Ionicons name="chevron-back" size={22} color="#4CAF50" />
+            <Ionicons name="chevron-back" size={22} color="#FFFFFF" />
           </TouchableOpacity>
 
           <Text style={styles.yearText}>{selectedYear}</Text>
@@ -269,7 +269,7 @@ export default function AnalyticsScreen() {
             style={styles.yearArrow}
             hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
           >
-            <Ionicons name="chevron-forward" size={22} color="#4CAF50" />
+            <Ionicons name="chevron-forward" size={22} color="#FFFFFF" />
           </TouchableOpacity>
         </Animated.View>
 
@@ -300,7 +300,7 @@ export default function AnalyticsScreen() {
 
         {/* ── Content ── */}
         {isLoading ? (
-          <ActivityIndicator size="large" color="#4CAF50" style={{ marginTop: 50 }} />
+          <ActivityIndicator size="large" color="#FFFFFF" style={{ marginTop: 50 }} />
         ) : allExpenses.length === 0 ? (
           <View style={styles.empty}>
             <Ionicons name="analytics-outline" size={64} color="#333" />
@@ -320,7 +320,7 @@ export default function AnalyticsScreen() {
               {selectedDay !== null && dailySpend[selectedDay] && (
                 <View style={styles.dayDetail}>
                   <View style={styles.dayDetailRow}>
-                    <Ionicons name="calendar" size={16} color="#4CAF50" />
+                    <Ionicons name="calendar" size={16} color="#FFFFFF" />
                     <Text style={styles.dayDetailDate}>
                       {selectedDay} {MONTHS[selectedMonth]} {selectedYear}
                     </Text>
@@ -453,10 +453,10 @@ const styles = StyleSheet.create({
   },
   monthChipActive: {
     backgroundColor: 'rgba(76,175,80,0.12)',
-    borderColor: '#4CAF50',
+    borderColor: '#FFFFFF',
   },
   monthChipText: { color: '#666', fontSize: 14, fontWeight: '600' },
-  monthChipTextActive: { color: '#4CAF50' },
+  monthChipTextActive: { color: '#FFFFFF' },
 
   // Breakdown card
   card: {
@@ -479,7 +479,7 @@ const styles = StyleSheet.create({
   chartContainer: { flexDirection: 'row', alignItems: 'center', gap: 20 },
   ringChart: {
     width: 120, height: 120, borderRadius: 60,
-    borderWidth: 8, borderColor: '#4CAF50',
+    borderWidth: 8, borderColor: '#FFFFFF',
     justifyContent: 'center', alignItems: 'center',
     borderStyle: 'dotted',
   },
@@ -556,10 +556,10 @@ const styles = StyleSheet.create({
   },
   calToday: {
     borderWidth: 1.5,
-    borderColor: '#4CAF50',
+    borderColor: '#FFFFFF',
   },
   calTodayText: {
-    color: '#4CAF50',
+    color: '#FFFFFF',
   },
   calSelected: {
     borderWidth: 2,
@@ -569,7 +569,7 @@ const styles = StyleSheet.create({
     width: 4,
     height: 4,
     borderRadius: 2,
-    backgroundColor: '#4CAF50',
+    backgroundColor: '#FFFFFF',
     marginTop: 2,
   },
   dayDetail: {
@@ -599,7 +599,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
   dayDetailAmount: {
-    color: '#4CAF50',
+    color: '#FFFFFF',
     fontSize: 16,
     fontWeight: 'bold',
   },

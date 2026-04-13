@@ -55,9 +55,9 @@ export function QuickActionModal({ visible, onClose, onScan, onGallery, onManual
           <Text style={styles.title}>Add Expense</Text>
 
           <TouchableOpacity style={styles.option} onPress={() => { onScan(); onClose(); }}>
-            <LinearGradient colors={['#1c461cff', '#2E7D32']} style={styles.iconBg}>
-              <Ionicons name="scan-outline" size={24} color="white" />
-            </LinearGradient>
+            <View style={[styles.iconBg, { backgroundColor: '#FFFFFF' }]}>
+              <Ionicons name="scan-outline" size={24} color="black" />
+            </View>
             <View style={styles.optionTextContainer}>
               <Text style={styles.optionTitle}>AI Scan Receipt</Text>
               <Text style={styles.optionSub}>Instantly extract data using AI</Text>
@@ -66,8 +66,8 @@ export function QuickActionModal({ visible, onClose, onScan, onGallery, onManual
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.option} onPress={() => { onGallery(); onClose(); }}>
-            <View style={[styles.iconBg, { backgroundColor: '#222' }]}>
-              <Ionicons name="image-outline" size={24} color="#4CAF50" />
+            <View style={[styles.iconBg, { backgroundColor: '#333333' }]}>
+              <Ionicons name="image-outline" size={24} color="#FFFFFF" />
             </View>
             <View style={styles.optionTextContainer}>
               <Text style={styles.optionTitle}>Choose from Gallery</Text>
@@ -77,8 +77,8 @@ export function QuickActionModal({ visible, onClose, onScan, onGallery, onManual
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.option} onPress={() => { onManual(); onClose(); }}>
-            <View style={[styles.iconBg, { backgroundColor: '#222' }]}>
-              <Ionicons name="create-outline" size={24} color="#3e9441ff" />
+            <View style={[styles.iconBg, { backgroundColor: '#333333' }]}>
+              <Ionicons name="create-outline" size={24} color="#FFFFFF" />
             </View>
             <View style={styles.optionTextContainer}>
               <Text style={styles.optionTitle}>Manual Entry</Text>

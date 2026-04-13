@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import {
   View, Text, StyleSheet, TextInput, TouchableOpacity,
   ActivityIndicator, Alert, KeyboardAvoidingView, Platform,
-  Dimensions
+  Dimensions, Image
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -15,12 +15,13 @@ const { width } = Dimensions.get('window');
 export default function SignupScreen() {
   const router = useRouter();
   const [username, setUsername] = useState('');
+  const [fullName, setFullName] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
   const handleSignup = async () => {
-    if (!username || !password || !confirmPassword) {
+    if (!username || !fullName || !password || !confirmPassword) {
       Alert.alert('Error', 'Please fill in all fields');
       return;
     }
@@ -32,7 +33,7 @@ export default function SignupScreen() {
 
     setIsLoading(true);
     try {
-      const result = await AuthService.register(username, password);
+      const result = await AuthService.register(username, password, fullName);
       if (result.success) {
         Alert.alert('Success', 'Account created! Please login.', [
           { text: 'OK', onPress: () => router.push('/auth/login') }
@@ -56,8 +57,14 @@ export default function SignupScreen() {
         style={styles.content}
       >
         <Animated.View entering={FadeInUp.delay(200).duration(800)} style={styles.header}>
+          <View style={styles.logoContainer}>
+            <Image 
+              source={require('../../assets/images/icon.png')} 
+              style={styles.logoImage}
+            />
+          </View>
           <Text style={styles.title}>Create Account</Text>
-          <Text style={styles.subtitle}>Join Expense AI to manage your budget</Text>
+          <Text style={styles.subtitle}>Join InstantLedger to manage your budget</Text>
         </Animated.View>
 
         <Animated.View entering={FadeInDown.delay(400).duration(800)} style={styles.form}>
@@ -70,6 +77,18 @@ export default function SignupScreen() {
               value={username}
               onChangeText={setUsername}
               autoCapitalize="none"
+            />
+          </View>
+
+          <View style={styles.inputContainer}>
+            <Ionicons name="card-outline" size={20} color="#666" style={styles.inputIcon} />
+            <TextInput
+              style={styles.input}
+              placeholder="Full Name"
+              placeholderTextColor="#666"
+              value={fullName}
+              onChangeText={setFullName}
+              autoCapitalize="words"
             />
           </View>
 
@@ -102,18 +121,13 @@ export default function SignupScreen() {
             onPress={handleSignup}
             disabled={isLoading}
           >
-            <LinearGradient
-              colors={['#4CAF50', '#2E7D32']}
-              style={styles.buttonGradient}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-            >
+            <View style={[styles.buttonGradient, { backgroundColor: '#FFFFFF' }]}>
               {isLoading ? (
-                <ActivityIndicator color="#fff" />
+                <ActivityIndicator color="#000" />
               ) : (
                 <Text style={styles.signupButtonText}>Sign Up</Text>
               )}
-            </LinearGradient>
+            </View>
           </TouchableOpacity>
 
           <View style={styles.footer}>
@@ -141,6 +155,19 @@ const styles = StyleSheet.create({
   header: { alignItems: 'center', marginBottom: 40 },
   title: { fontSize: 32, fontWeight: 'bold', color: '#fff' },
   subtitle: { fontSize: 16, color: '#888', marginTop: 8, textAlign: 'center' },
+  logoContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 24,
+    overflow: 'hidden',
+    marginBottom: 20,
+    elevation: 20,
+    shadowColor: '#FFFFFF',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.2,
+    shadowRadius: 20,
+  },
+  logoImage: { width: '100%', height: '100%' },
   form: { width: '100%' },
   inputContainer: {
     flexDirection: 'row',
@@ -162,14 +189,14 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   buttonGradient: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  signupButtonText: { color: '#fff', fontSize: 18, fontWeight: 'bold' },
+  signupButtonText: { color: '#000', fontSize: 18, fontWeight: 'bold' },
   footer: {
     flexDirection: 'row',
     justifyContent: 'center',
     marginTop: 24,
   },
   footerText: { color: '#888', fontSize: 14 },
-  loginText: { color: '#4CAF50', fontSize: 14, fontWeight: 'bold' },
+  loginText: { color: '#FFFFFF', fontSize: 14, fontWeight: 'bold' },
   backButton: {
     position: 'absolute',
     top: 60,

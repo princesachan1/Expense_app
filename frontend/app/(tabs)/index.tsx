@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity,
   ActivityIndicator, ScrollView, Dimensions, Alert,
-  DeviceEventEmitter,
+  DeviceEventEmitter, NativeModules,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import DocumentScanner from 'react-native-document-scanner-plugin';
@@ -11,11 +11,16 @@ import Animated, { FadeInDown } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
+import { BlurView } from 'expo-blur';
+import * as Notifications from 'expo-notifications';
+
+const { RNAndroidNotificationListener } = NativeModules;
 
 import { apiService, StructuredData, ExpenseRecord } from '../../services/apiService';
 import { EditExpenseModal } from '../../components/EditExpenseModal';
 import { HistoryItem } from '../../components/HistoryItem';
 import { AuthService } from '../../services/AuthService';
+import { SmsService } from '../../services/SmsService';
 
 const { width } = Dimensions.get('window');
 
@@ -72,6 +77,7 @@ export default function HomeScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [totalThisMonth, setTotalThisMonth] = useState(0);
   const [username, setUsername] = useState('User');
+  const [hasNotificationAccess, setHasNotificationAccess] = useState(true);
 
   // Extraction state
   const [isExtracting, setIsExtracting] = useState(false);
@@ -82,7 +88,9 @@ export default function HomeScreen() {
   const loadHistory = async () => {
     try {
       const user = await AuthService.getCurrentUser();
-      if (user) setUsername(user.username);
+      if (user) {
+        setUsername(user.full_name || user.username);
+      }
 
       const result = await apiService.fetchExpenses();
       if (result.success && result.expenses) {
@@ -95,8 +103,6 @@ export default function HomeScreen() {
         let monthly = 0;
 
         result.expenses.forEach(exp => {
-
-
           const d = parseExpenseDate(exp.date);
           if (d && d.getMonth() === curM && d.getFullYear() === curY) {
             monthly += exp.total;
@@ -104,7 +110,6 @@ export default function HomeScreen() {
         });
 
         setTotalThisMonth(monthly);
-
       }
     } catch (error) {
       console.error('Dashboard load error:', error);
@@ -117,6 +122,16 @@ export default function HomeScreen() {
 
   // ── Event listeners for the "+" action button ──
   useEffect(() => {
+    SmsService.startListener();
+
+    if (RNAndroidNotificationListener && typeof RNAndroidNotificationListener.getPermissionStatus === 'function') {
+      RNAndroidNotificationListener.getPermissionStatus().then((status: string) => {
+        setHasNotificationAccess(status === 'authorized');
+      });
+    } else {
+      setHasNotificationAccess(true); // Hide banner in unsupported envs
+    }
+
     const scanSub = DeviceEventEmitter.addListener('triggerScan', onScan);
     const gallerySub = DeviceEventEmitter.addListener('triggerGallery', onGallery);
     const manualSub = DeviceEventEmitter.addListener('triggerManual', () => {
@@ -218,13 +233,39 @@ export default function HomeScreen() {
 
       {/* AI extraction overlay */}
       {isExtracting && (
-        <View style={styles.extractingOverlay}>
-          <ActivityIndicator size="large" color="#4CAF50" />
-          <Text style={styles.extractingText}>AI is reading your receipt…</Text>
+        <View style={styles.overlay}>
+          <BlurView intensity={20} style={StyleSheet.absoluteFill} tint="dark" />
+          <View style={styles.overlayContent}>
+            <ActivityIndicator size="large" color="#FFFFFF" />
+            <Text style={styles.overlayText}>AI is reading your receipt…</Text>
+          </View>
         </View>
       )}
 
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+
+        {/* SMS Setup Banner */}
+        {!hasNotificationAccess && (
+          <TouchableOpacity 
+            style={styles.setupBanner}
+            onPress={() => {
+              if (RNAndroidNotificationListener && typeof RNAndroidNotificationListener.requestPermission === 'function') {
+                RNAndroidNotificationListener.requestPermission();
+              } else {
+                Alert.alert('Not Supported', 'This feature requires a Development Build and cannot be tested in Expo Go.');
+              }
+            }}
+          >
+            <View style={styles.setupBannerIcon}>
+              <Ionicons name="notifications-outline" size={24} color="#000" />
+            </View>
+            <View style={styles.setupBannerText}>
+              <Text style={styles.setupBannerTitle}>Enable SMS Tracking</Text>
+              <Text style={styles.setupBannerSub}>Tap to allow InstantLedger to detect bank transactions.</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color="#AAA" />
+          </TouchableOpacity>
+        )}
 
         {/* ── Header ── */}
         <Animated.View entering={FadeInDown.delay(100)} style={styles.header}>
@@ -237,26 +278,26 @@ export default function HomeScreen() {
             onPress={() => router.push('/settings')}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
-            <Ionicons name="person-circle-outline" size={42} color="#4CAF50" />
+            <Ionicons name="person-circle-outline" size={42} color="#FFFFFF" />
           </TouchableOpacity>
         </Animated.View>
 
         {/* ── Main Summary Card ── */}
         <Animated.View entering={FadeInDown.delay(200)} style={styles.summaryCard}>
           <LinearGradient
-            colors={['#e8ece69f', '#f0f7f0ff']}
+            colors={['#f5f5f7ff', '#717070ff']}
             style={styles.summaryGradient}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
           >
-            <Text style={styles.summaryLabel}>Total Spent This Month</Text>
-            <Text style={styles.summaryAmount}>
+            <Text style={[styles.summaryLabel, { color: '#201d1dff' }]}>Total Spent This Month</Text>
+            <Text style={[styles.summaryAmount, { color: '#000000' }]}>
               ₹{totalThisMonth.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
             </Text>
 
             <View style={styles.chipRow}>
               <View style={styles.chip}>
-                <Ionicons name="receipt-outline" size={14} color="rgba(255,255,255,0.8)" />
+                <Ionicons name="receipt-outline" size={14} color="#000000" />
                 <Text style={styles.chipText}>{expenses.length} records</Text>
               </View>
             </View>
@@ -335,9 +376,9 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     marginBottom: 24,
     elevation: 10,
-    shadowColor: '#317433ff',
+    shadowColor: '#FFFFFF',
     shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.25,
+    shadowOpacity: 0.1,
     shadowRadius: 16,
   },
   summaryGradient: { padding: 24 },
@@ -362,13 +403,15 @@ const styles = StyleSheet.create({
   chip: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.15)',
+    backgroundColor: 'rgba(0,0,0,0.08)',
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 20,
     gap: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.1)',
   },
-  chipText: { color: '#fff', fontSize: 12, fontWeight: '600' },
+  chipText: { color: '#000000', fontSize: 12, fontWeight: '700' },
 
 
   // Section
@@ -379,7 +422,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   sectionTitle: { fontSize: 18, fontWeight: 'bold', color: '#fff' },
-  seeAll: { color: '#4CAF50', fontSize: 14, fontWeight: '600' },
+  seeAll: { color: '#FFFFFF', fontSize: 14, fontWeight: '600' },
 
   // Recent list
   recentList: { minHeight: 100 },
@@ -394,12 +437,51 @@ const styles = StyleSheet.create({
   emptyHint: { color: '#444', fontSize: 13, textAlign: 'center' },
 
   // Extracting overlay
-  extractingOverlay: {
+  overlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.85)',
     justifyContent: 'center',
     alignItems: 'center',
     zIndex: 100,
   },
-  extractingText: { color: '#fff', marginTop: 20, fontSize: 16, fontWeight: '500' },
+  overlayContent: {
+    alignItems: 'center',
+  },
+  overlayText: {
+    color: '#FFFFFF',
+    marginTop: 15,
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  setupBanner: {
+    backgroundColor: '#1A1A1A',
+    marginBottom: 20,
+    borderRadius: 20,
+    padding: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#333',
+  },
+  setupBannerIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#FFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 16,
+  },
+  setupBannerText: {
+    flex: 1,
+  },
+  setupBannerTitle: {
+    color: '#FFF',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  setupBannerSub: {
+    color: '#777',
+    fontSize: 12,
+    marginTop: 2,
+  },
 });

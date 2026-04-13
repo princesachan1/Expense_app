@@ -15,14 +15,11 @@ export function ActionButton({ onPress }: ActionButtonProps) {
         onPress={onPress}
         style={styles.button}
       >
-        <LinearGradient
-          colors={['#4CAF50', '#2E7D32']}
-          style={styles.gradient}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
+        <View
+          style={[styles.gradient, { backgroundColor: '#FFFFFF' }]}
         >
-          <Ionicons name="add" size={32} color="white" />
-        </LinearGradient>
+          <Ionicons name="add" size={32} color="black" />
+        </View>
       </TouchableOpacity>
     </View>
   );
@@ -42,9 +39,9 @@ const styles = StyleSheet.create({
     height: 64,
     borderRadius: 32,
     elevation: 8,
-    shadowColor: '#4CAF50',
+    shadowColor: '#FFFFFF',
     shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.4,
+    shadowOpacity: 0.2,
     shadowRadius: 10,
   },
   gradient: {

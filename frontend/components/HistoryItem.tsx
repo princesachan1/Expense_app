@@ -21,7 +21,7 @@ export const HistoryItem: React.FC<HistoryItemProps> = ({ item, index, onPress }
           <Ionicons 
             name={getCategoryIcon(item.category)} 
             size={22} 
-            color="#4CAF50" 
+            color="#FFFFFF" 
           />
         </View>
         
@@ -79,7 +79,7 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 14,
-    backgroundColor: 'rgba(76, 175, 80, 0.05)',
+    backgroundColor: '#333333',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 16,
@@ -118,7 +118,7 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   tagText: {
-    color: '#4CAF50',
+    color: '#FFFFFF',
     fontSize: 10,
     fontWeight: 'bold',
   },
