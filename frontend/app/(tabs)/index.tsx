@@ -20,6 +20,7 @@ import { EditExpenseModal } from '../../components/EditExpenseModal';
 import { HistoryItem } from '../../components/HistoryItem';
 import { AuthService } from '../../services/AuthService';
 import { SmsService } from '../../services/SmsService';
+import { API_CONFIG } from '../../constants/config';
 
 const { width } = Dimensions.get('window');
 
@@ -134,12 +135,19 @@ export default function HomeScreen() {
   }, []);
 
   // ── AI Scan flow ──
+  const prewarmBackend = () => {
+    // Fire-and-forget: ping the backend so it's warm by the time the image is ready
+    fetch(`${API_CONFIG.BASE_URL}/api/health`).catch(() => {});
+  };
+
   const onScan = async () => {
     const { granted } = await ImagePicker.requestCameraPermissionsAsync();
     if (!granted) {
       Alert.alert('Permission Required', 'Camera access is needed to scan receipts.');
       return;
     }
+
+    prewarmBackend(); // Wake up backend while user scans
 
     try {
       const { scannedImages } = await DocumentScanner.scanDocument({
@@ -162,9 +170,11 @@ export default function HomeScreen() {
       return;
     }
 
+    prewarmBackend(); // Wake up backend while user picks image
+
     const result = await ImagePicker.launchImageLibraryAsync({
       allowsEditing: true,
-      quality: 1,
+      quality: 0.5,  // Compressed for faster upload — OCR doesn't need full quality
       mediaTypes: ['images'],
     });
 

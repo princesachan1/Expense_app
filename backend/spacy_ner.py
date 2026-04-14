@@ -22,6 +22,19 @@ def get_nlp():
             nlp_instance = None
     return nlp_instance
 
+def warmup_nlp():
+    """
+    Pre-loads the spaCy model at startup so the first request doesn't pay the load cost.
+    """
+    print("Warming up spaCy NER model...")
+    nlp = get_nlp()
+    if nlp:
+        # Run a dummy prediction to warm up any lazy internals
+        nlp("test warmup sentence")
+        print("spaCy NER warm-up complete!")
+    else:
+        print("⚠️  spaCy model not available for warm-up")
+
 # Strict category list as requested
 ALLOWED_CATEGORIES = [
     "Groceries", "Fuel & Transport", "Food", "Bills & Utilities", 

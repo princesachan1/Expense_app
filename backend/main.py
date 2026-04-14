@@ -14,8 +14,8 @@ from datetime import timedelta
 from pydantic import BaseModel
 
 # Import our modular logic
-from paddle_ocr import perform_ocr
-from spacy_ner import extract_entities, predict_category_from_text
+from paddle_ocr import perform_ocr, warmup_ocr
+from spacy_ner import extract_entities, predict_category_from_text, warmup_nlp
 from regex_logic import apply_fallbacks
 from database import init_db, get_db, Expense, User
 from timing import Timer
@@ -26,12 +26,17 @@ from auth import (
 
 app = FastAPI(title="Expense AI Backend")
 
-# Thread pool for heavy OCR work
-executor = ThreadPoolExecutor(max_workers=2)
+# Thread pool for heavy OCR work — only 1 worker to avoid over-subscribing HF free-tier (2 vCPUs)
+executor = ThreadPoolExecutor(max_workers=1)
 
 @app.on_event("startup")
 def startup_event():
     init_db()
+    # Pre-load ALL ML models at container boot to eliminate cold-start latency
+    print("🚀 Pre-loading ML models at startup...")
+    warmup_ocr()
+    warmup_nlp()
+    print("✅ All models loaded and warm!")
 
 app.add_middleware(
     CORSMiddleware,
@@ -133,8 +138,8 @@ async def extract_text_from_receipt(
     try:
         contents = await file.read()
         img = Image.open(io.BytesIO(contents))
-        img.thumbnail((800, 800))
-        img.save(temp_file_path, "JPEG", quality=95)
+        img.thumbnail((640, 640))  # Smaller image = much faster OCR on CPU
+        img.save(temp_file_path, "JPEG", quality=75)  # Lower quality is fine for OCR
         
         loop = asyncio.get_running_loop()
         structured_data = await loop.run_in_executor(
@@ -266,3 +271,8 @@ def delete_expense(
 @app.get("/")
 def read_root():
     return {"status": "AI Multi-User Backend is Running!"}
+
+@app.get("/api/health")
+def health_check():
+    """Lightweight health-check endpoint. Can be pinged to keep the Space awake."""
+    return {"status": "ok"}

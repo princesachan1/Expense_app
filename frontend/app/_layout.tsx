@@ -11,6 +11,7 @@ import { RNAndroidNotificationListenerHeadlessJsName } from 'react-native-androi
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { SmsService } from '../services/SmsService';
+import { KeepAliveService } from '../services/KeepAliveService';
 
 const HANDLED_NOTIFICATION_KEY = '@last_handled_notification_id';
 
@@ -115,7 +116,13 @@ export default function RootLayout() {
 
     checkPermissions();
 
-    return () => subscription.remove();
+    // 3. Start keep-alive pings to prevent HF Space from sleeping
+    KeepAliveService.start();
+
+    return () => {
+      subscription.remove();
+      KeepAliveService.stop();
+    };
   }, []);
 
   return (
