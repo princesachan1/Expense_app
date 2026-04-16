@@ -42,6 +42,31 @@ async function getHeaders(isJson = true) {
   return headers;
 }
 
+/**
+ * Universal wrapper for fetch that handles 401 Unauthorized errors
+ * by attempting to refresh the token and retrying the request once.
+ */
+async function safeFetch(url: string, options: RequestInit = {}, isJsonHeaders = true) {
+  let headers = await getHeaders(isJsonHeaders);
+  
+  let response = await fetch(url, { ...options, headers });
+
+  if (response.status === 401) {
+    console.log(`[apiService] 401 Detected on ${url}. Attempting token refresh...`);
+    const newToken = await AuthService.refreshToken();
+    
+    if (newToken) {
+      console.log(`[apiService] Refresh successful. Retrying ${url}...`);
+      headers = await getHeaders(isJsonHeaders); // Get fresh headers with new token
+      response = await fetch(url, { ...options, headers });
+    } else {
+      console.warn(`[apiService] Refresh failed or no refresh token available. User must re-login.`);
+    }
+  }
+
+  return response;
+}
+
 export const apiService = {
   /**
    * Uploads a receipt image for AI extraction. (NO DB SAVE)
@@ -57,12 +82,10 @@ export const apiService = {
     } as any);
 
     try {
-      const headers = await getHeaders(false);
-      const response = await fetch(`${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.EXTRACT}`, {
+      const response = await safeFetch(`${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.EXTRACT}`, {
         method: 'POST',
-        headers,
         body: formData,
-      });
+      }, false);
       return await response.json();
     } catch (error) {
       console.error("apiService.extractReceipt Error:", error);
@@ -75,10 +98,8 @@ export const apiService = {
    */
   async saveExpense(data: Partial<ExpenseRecord>): Promise<{ success: boolean; id?: number }> {
     try {
-      const headers = await getHeaders();
-      const response = await fetch(`${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.EXPENSES}`, {
+      const response = await safeFetch(`${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.EXPENSES}`, {
         method: 'POST',
-        headers,
         body: JSON.stringify(data),
       });
       return await response.json();
@@ -93,10 +114,8 @@ export const apiService = {
    */
   async updateExpense(id: number, data: Partial<ExpenseRecord>): Promise<{ success: boolean }> {
     try {
-      const headers = await getHeaders();
-      const response = await fetch(`${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.EXPENSES}/${id}`, {
+      const response = await safeFetch(`${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.EXPENSES}/${id}`, {
         method: 'PUT',
-        headers,
         body: JSON.stringify(data),
       });
       return await response.json();
@@ -111,9 +130,8 @@ export const apiService = {
    */
   async fetchExpenses(): Promise<HistoryResponse> {
     try {
-      const headers = await getHeaders();
-      const response = await fetch(`${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.EXPENSES}`, {
-        headers
+      const response = await safeFetch(`${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.EXPENSES}`, {
+        method: 'GET'
       });
       return await response.json();
     } catch (error) {
@@ -127,10 +145,8 @@ export const apiService = {
    */
   async deleteExpense(id: number): Promise<{ success: boolean }> {
     try {
-      const headers = await getHeaders();
-      const response = await fetch(`${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.EXPENSES}/${id}`, {
+      const response = await safeFetch(`${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.EXPENSES}/${id}`, {
         method: 'DELETE',
-        headers,
       });
       return await response.json();
     } catch (error) {

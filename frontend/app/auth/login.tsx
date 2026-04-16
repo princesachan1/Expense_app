@@ -66,7 +66,7 @@ export default function LoginScreen() {
               placeholder="Username"
               placeholderTextColor="#666"
               value={username}
-              onChangeText={setUsername}
+              onChangeText={(text) => setUsername(text.toLowerCase().replace(/[^a-z0-9]/g, ''))}
               autoCapitalize="none"
             />
           </View>

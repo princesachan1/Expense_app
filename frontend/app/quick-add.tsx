@@ -18,7 +18,15 @@ export default function QuickAddScreen() {
   const [formData, setFormData] = useState({
     amount: '',
     merchant: '',
-    date: new Date().toISOString().split('T')[0],
+    date: (() => {
+      const now = new Date();
+      const pad = (n: number) => n.toString().padStart(2, '0');
+      let hours = now.getHours();
+      const ampm = hours >= 12 ? 'PM' : 'AM';
+      hours = hours % 12;
+      hours = hours ? hours : 12;
+      return `${pad(now.getDate())}-${pad(now.getMonth() + 1)}-${now.getFullYear()} ${pad(hours)}:${pad(now.getMinutes())} ${ampm}`;
+    })(),
     description: ''
   });
   const [txData, setTxData] = useState<any>(null);
@@ -34,13 +42,22 @@ export default function QuickAddScreen() {
         ...prev,
         amount: params.amount as string,
         merchant: params.merchant as string || 'Bank SMS',
-        date: params.date as string || new Date().toISOString().split('T')[0],
+        date: params.date as string || (() => {
+          const now = new Date();
+          const pad = (n: number) => n.toString().padStart(2, '0');
+          let hours = now.getHours();
+          const ampm = hours >= 12 ? 'PM' : 'AM';
+          hours = hours % 12;
+          hours = hours ? hours : 12;
+          return `${pad(now.getDate())}-${pad(now.getMonth() + 1)}-${now.getFullYear()} ${pad(hours)}:${pad(now.getMinutes())} ${ampm}`;
+        })(),
       }));
       setTxData({
         amount: params.amount,
         merchant: params.merchant,
         date: params.date,
-        originalText: params.originalText || ''
+        originalText: params.originalText || '',
+        notifId: params.notifId
       });
       initialized.current = true;
     } else {
@@ -87,7 +104,7 @@ export default function QuickAddScreen() {
         await SmsService.clearLastTransaction();
         if (txData) {
           await SmsService.markAsProcessed(txData);
-          await SmsService.dismissTransactionNotification();
+          await SmsService.dismissTransactionNotification(txData.notifId);
         }
         Alert.alert('Success', 'Expense categorized and saved!');
         router.replace('/(tabs)/history');
@@ -120,6 +137,36 @@ export default function QuickAddScreen() {
               date: formData.date,
               category: 'Pending...'
             }} 
+          />
+        </View>
+
+        <View style={styles.editSection}>
+          <Text style={styles.sectionLabel}>Amount (₹)</Text>
+          <TextInput
+            style={styles.detailsInput}
+            value={formData.amount}
+            keyboardType="numeric"
+            onChangeText={(t) => setFormData({ ...formData, amount: t })}
+            placeholder="0.00"
+            placeholderTextColor="#444"
+          />
+
+          <Text style={styles.sectionLabel}>Merchant</Text>
+          <TextInput
+            style={styles.detailsInput}
+            value={formData.merchant}
+            onChangeText={(t) => setFormData({ ...formData, merchant: t })}
+            placeholder="Store Name"
+            placeholderTextColor="#444"
+          />
+
+          <Text style={styles.sectionLabel}>Date & Time</Text>
+          <TextInput
+            style={styles.detailsInput}
+            value={formData.date}
+            onChangeText={(t) => setFormData({ ...formData, date: t })}
+            placeholder="DD-MM-YYYY hh:mm AM/PM"
+            placeholderTextColor="#444"
           />
         </View>
 
@@ -156,7 +203,7 @@ export default function QuickAddScreen() {
             await SmsService.clearLastTransaction();
             if (txData) {
               await SmsService.markAsProcessed(txData);
-              await SmsService.dismissTransactionNotification();
+              await SmsService.dismissTransactionNotification(txData.notifId);
             }
             router.back();
           }}
@@ -192,9 +239,34 @@ const styles = StyleSheet.create({
     color: '#fff',
   },
   cardContainer: {
-    marginBottom: 40,
+    marginBottom: 20,
     alignItems: 'center',
     width: '100%',
+  },
+  editSection: {
+    marginBottom: 24,
+    backgroundColor: '#161616',
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#333',
+  },
+  sectionLabel: {
+    color: '#777',
+    fontSize: 12,
+    textTransform: 'uppercase',
+    marginBottom: 8,
+    fontWeight: 'bold',
+  },
+  detailsInput: {
+    backgroundColor: '#000',
+    borderRadius: 8,
+    padding: 12,
+    color: '#fff',
+    fontSize: 16,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#222',
   },
   promptSection: {
     marginBottom: 40,

@@ -59,11 +59,12 @@ export default function RootLayout() {
     // 1. Reusable handler for notification responses
     const handleNotificationResponse = (response: Notifications.NotificationResponse) => {
       const data = response.notification.request.content.data;
+      const notifId = response.notification.request.identifier;
       if (data.type === 'transaction_detected') {
         const amount = String(data.amount || '');
         const merchant = String(data.merchant || '');
         const date = String(data.date || '');
-        router.push(`/quick-add?amount=${encodeURIComponent(amount)}&merchant=${encodeURIComponent(merchant)}&date=${encodeURIComponent(date)}` as any);
+        router.push(`/quick-add?amount=${encodeURIComponent(amount)}&merchant=${encodeURIComponent(merchant)}&date=${encodeURIComponent(date)}&notifId=${encodeURIComponent(notifId)}` as any);
       }
     };
 

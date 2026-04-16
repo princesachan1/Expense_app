@@ -10,6 +10,51 @@ import { apiService, ExpenseRecord } from '../../services/apiService';
 import { HistoryItem } from '../../components/HistoryItem';
 import { EditExpenseModal } from '../../components/EditExpenseModal';
 
+// ──────────────────────────────────────────
+// Robust date parser that handles:
+//   DD/MM/YYYY, DD-MM-YYYY, YYYY-MM-DD and includes time like hh:mm AM/PM
+// ──────────────────────────────────────────
+function parseExpenseDate(raw: string | undefined | null): Date {
+  if (!raw) return new Date(0); // extremely old fallback
+
+  const datePart = raw.split(' ')[0];
+  const timePart = raw.split(' ').slice(1).join(' ');
+  
+  const parts = datePart.split(/[-/]/);
+  if (parts.length === 3) {
+    let day = parseInt(parts[0], 10);
+    let month = parseInt(parts[1], 10) - 1;
+    let year = parseInt(parts[2], 10);
+
+    if (parts[0].length === 4) { // YYYY-MM-DD
+      year = parseInt(parts[0], 10);
+      day = parseInt(parts[2], 10);
+    }
+    if (year < 100) year += 2000;
+
+    if (!isNaN(day) && !isNaN(month) && !isNaN(year)) {
+      let hours = 0;
+      let minutes = 0;
+      if (timePart) {
+          const timeMatch = timePart.match(/(\d+):(\d+)\s*(AM|PM)?/i);
+          if (timeMatch) {
+              hours = parseInt(timeMatch[1], 10);
+              minutes = parseInt(timeMatch[2], 10);
+              const ampm = timeMatch[3];
+              if (ampm) {
+                  if (ampm.toUpperCase() === 'PM' && hours < 12) hours += 12;
+                  if (ampm.toUpperCase() === 'AM' && hours === 12) hours = 0;
+              }
+          }
+      }
+      return new Date(year, month, day, hours, minutes);
+    }
+  }
+
+  const native = new Date(raw);
+  return isNaN(native.getTime()) ? new Date(0) : native;
+}
+
 export default function HistoryScreen() {
   const [expenses, setExpenses] = useState<ExpenseRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -24,8 +69,20 @@ export default function HistoryScreen() {
     try {
       const result = await apiService.fetchExpenses();
       if (result.success && result.expenses) {
-        setExpenses(result.expenses);
-        const total = result.expenses.reduce((sum, exp) => sum + exp.total, 0);
+        // Sort descending by transaction date (newest first) instead of insertion id/created_at
+        const sorted = [...result.expenses].sort((a, b) => {
+          const dateA = parseExpenseDate(a.date).getTime();
+          const dateB = parseExpenseDate(b.date).getTime();
+          
+          if (dateA === dateB) {
+            // Tie-breaker: fallback to created_at descending
+            return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+          }
+          return dateB - dateA;
+        });
+        
+        setExpenses(sorted);
+        const total = sorted.reduce((sum, exp) => sum + exp.total, 0);
         setTotalSpent(total);
       }
     } catch (error) {

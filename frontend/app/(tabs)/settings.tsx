@@ -11,7 +11,6 @@ import { useFocusEffect } from '@react-navigation/native';
 
 export default function SettingsScreen() {
   const router = useRouter();
-  const [isDarkMode, setIsDarkMode] = React.useState(true);
   const [notifications, setNotifications] = React.useState(true);
   const [fullName, setFullName] = React.useState('');
   const [newName, setNewName] = React.useState('');
@@ -38,14 +37,21 @@ export default function SettingsScreen() {
   const toggleNotifications = async (val: boolean) => {
     setNotifications(val);
     await SmsService.setNotificationPreference(val);
-    
+
     if (val) {
       // If turning on, check system permissions
-      const { status } = await SmsService.startListener(); // Re-use startListener or check status
-      // We can also just check status here
-      const systemStatus = await SmsService.getNotificationPreference(); // This is local pref, we need system
-      // Better to just show alert if they enable it but it might be blocked
-      console.log('User enabled notifications in app');
+      const status = await SmsService.checkPermissionStatus();
+      if (status !== 'authorized' && status !== 'not_available') {
+        Alert.alert(
+          "Permission Required",
+          "You need to grant Notification Access for Auto Tracking to work.",
+          [
+            { text: "Later", style: "cancel" },
+            { text: "Enable", onPress: () => SmsService.requestPermission() }
+          ]
+        );
+      }
+      console.log('User enabled notifications in app, system status:', status);
     }
   };
 
@@ -94,8 +100,8 @@ export default function SettingsScreen() {
         {type === 'chevron' && <Ionicons name="chevron-forward" size={18} color="#444" />}
       </View>
       {type === 'switch' && (
-        <Switch 
-          value={value} 
+        <Switch
+          value={value}
           onValueChange={onPress}
           trackColor={{ false: '#333', true: '#FFFFFF' }}
           thumbColor="#fff"
@@ -107,7 +113,7 @@ export default function SettingsScreen() {
   return (
     <View style={styles.container}>
       <LinearGradient colors={['#1a1a1a', '#000000']} style={StyleSheet.absoluteFill} />
-      
+
       <ScrollView contentContainerStyle={styles.scroll}>
         <Animated.View entering={FadeInDown.delay(100)} style={styles.header}>
           <Text style={styles.title}>Settings ⚙️</Text>
@@ -116,13 +122,12 @@ export default function SettingsScreen() {
         <Animated.View entering={FadeInDown.delay(200)} style={styles.section}>
           <Text style={styles.sectionTitle}>Account</Text>
           <View style={styles.card}>
-            <SettingItem 
-              icon="person-outline" 
-              title="Profile Details" 
-              value={fullName || 'Not set'} 
-              onPress={handleUpdateName} 
+            <SettingItem
+              icon="person-outline"
+              title="Profile Details"
+              value={fullName || 'Not set'}
+              onPress={handleUpdateName}
             />
-            <SettingItem icon="wallet-outline" title="Currency" value="INR (₹)" />
             <SettingItem icon="notifications-outline" title="Notifications" type="switch" value={notifications} onPress={toggleNotifications} />
           </View>
         </Animated.View>
@@ -130,7 +135,6 @@ export default function SettingsScreen() {
         <Animated.View entering={FadeInDown.delay(300)} style={styles.section}>
           <Text style={styles.sectionTitle}>Preferences</Text>
           <View style={styles.card}>
-            <SettingItem icon="moon-outline" title="Dark Mode" type="switch" value={isDarkMode} onPress={() => setIsDarkMode(!isDarkMode)} />
             <SettingItem icon="language-outline" title="Language" />
             <SettingItem icon="shield-checkmark-outline" title="Privacy & Security" />
           </View>
@@ -163,7 +167,7 @@ export default function SettingsScreen() {
           <Animated.View entering={FadeInDown} style={styles.modalContent}>
             <Text style={styles.modalTitle}>Update Name</Text>
             <Text style={styles.modalSubtitle}>How should we address you?</Text>
-            
+
             <TextInput
               style={styles.modalInput}
               value={newName}
@@ -175,15 +179,15 @@ export default function SettingsScreen() {
             />
 
             <View style={styles.modalButtons}>
-              <TouchableOpacity 
-                style={[styles.modalBtn, styles.cancelBtn]} 
+              <TouchableOpacity
+                style={[styles.modalBtn, styles.cancelBtn]}
                 onPress={() => setIsEditModalVisible(false)}
               >
                 <Text style={styles.cancelBtnText}>Cancel</Text>
               </TouchableOpacity>
-              
-              <TouchableOpacity 
-                style={[styles.modalBtn, styles.saveBtn]} 
+
+              <TouchableOpacity
+                style={[styles.modalBtn, styles.saveBtn]}
                 onPress={saveProfileUpdate}
                 disabled={isSaving}
               >
@@ -218,7 +222,7 @@ const styles = StyleSheet.create({
   logoutBtn: { marginTop: 10, padding: 18, borderRadius: 20, backgroundColor: 'rgba(255, 59, 48, 0.1)', alignItems: 'center', borderWidth: 1, borderColor: 'rgba(255, 59, 48, 0.3)' },
   logoutText: { color: '#FF3B30', fontSize: 16, fontWeight: 'bold' },
   version: { textAlign: 'center', color: '#444', fontSize: 12, marginTop: 30 },
-  
+
   // Modal Styles
   modalOverlay: {
     flex: 1,

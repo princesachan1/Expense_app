@@ -21,8 +21,10 @@ from database import init_db, get_db, Expense, User
 from timing import Timer
 from auth import (
     get_password_hash, verify_password, create_access_token, 
-    get_current_user, ACCESS_TOKEN_EXPIRE_MINUTES
+    create_refresh_token, get_current_user, 
+    ACCESS_TOKEN_EXPIRE_MINUTES, SECRET_KEY, ALGORITHM
 )
+from jose import JWTError, jwt
 
 app = FastAPI(title="Expense AI Backend")
 
@@ -56,6 +58,25 @@ class UserRegister(BaseModel):
     full_name: str = None
 
 # ──────────────────────────────────────────
+# AUTH HELPERS
+# ──────────────────────────────────────────
+
+def validate_password(password: str):
+    """
+    Enforces password complexity:
+    - Minimum 8 characters
+    - At least one number
+    - At least one letter
+    """
+    if len(password) < 8:
+        return False, "Password must be at least 8 characters long"
+    if not any(char.isdigit() for char in password):
+        return False, "Password must contain at least one number"
+    if not any(char.isalpha() for char in password):
+        return False, "Password must contain at least one letter"
+    return True, ""
+
+# ──────────────────────────────────────────
 # AUTH ENDPOINTS
 # ──────────────────────────────────────────
 
@@ -65,6 +86,17 @@ def register_user(data: UserRegister, db: Session = Depends(get_db)):
     
     if not data.username or not data.password:
         raise HTTPException(status_code=400, detail="Username and password required")
+        
+    import re
+    if not re.match(r"^[a-z0-9]+$", data.username):
+        raise HTTPException(
+            status_code=400, 
+            detail="Username must contain only lowercase letters and numbers (no spaces or special characters)."
+        )
+    
+    is_valid, error_msg = validate_password(data.password)
+    if not is_valid:
+        raise HTTPException(status_code=400, detail=error_msg)
     
     existing_user = db.query(User).filter(User.username == data.username).first()
     if existing_user:
@@ -95,7 +127,43 @@ def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db:
     access_token = create_access_token(
         data={"sub": user.username}, expires_delta=access_token_expires
     )
+    refresh_token = create_refresh_token(data={"sub": user.username})
+    
     print(f"Login successful for user: {user.username}")
+    return {
+        "access_token": access_token, 
+        "refresh_token": refresh_token,
+        "token_type": "bearer"
+    }
+
+class RefreshRequest(BaseModel):
+    refresh_token: str
+
+@app.post("/api/auth/refresh")
+def refresh_access_token(data: RefreshRequest, db: Session = Depends(get_db)):
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate refresh token",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    try:
+        payload = jwt.decode(data.refresh_token, SECRET_KEY, algorithms=[ALGORITHM])
+        if payload.get("type") != "refresh":
+            raise credentials_exception
+        username: str = payload.get("sub")
+        if username is None:
+            raise credentials_exception
+    except JWTError:
+        raise credentials_exception
+    
+    user = db.query(User).filter(User.username == username).first()
+    if user is None:
+        raise credentials_exception
+    
+    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(
+        data={"sub": user.username}, expires_delta=access_token_expires
+    )
     return {"access_token": access_token, "token_type": "bearer"}
 
 @app.get("/api/auth/me")

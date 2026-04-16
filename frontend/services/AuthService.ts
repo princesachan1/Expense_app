@@ -2,6 +2,7 @@ import * as SecureStore from 'expo-secure-store';
 import { API_CONFIG } from '../constants/config';
 
 const TOKEN_KEY = 'user_auth_token';
+const REFRESH_TOKEN_KEY = 'user_refresh_token';
 const REQUEST_TIMEOUT = 10000; // 10 seconds
 
 async function fetchWithTimeout(url: string, options: any = {}) {
@@ -54,6 +55,9 @@ export const AuthService = {
       if (data.access_token) {
         await SecureStore.setItemAsync(TOKEN_KEY, data.access_token);
       }
+      if (data.refresh_token) {
+        await SecureStore.setItemAsync(REFRESH_TOKEN_KEY, data.refresh_token);
+      }
       return data;
     } catch (error: any) {
       return { detail: error.message };
@@ -61,11 +65,46 @@ export const AuthService = {
   },
 
   async logout() {
-    await SecureStore.deleteItemAsync(TOKEN_KEY);
+    await Promise.all([
+      SecureStore.deleteItemAsync(TOKEN_KEY),
+      SecureStore.deleteItemAsync(REFRESH_TOKEN_KEY),
+    ]);
   },
 
   async getToken() {
     return await SecureStore.getItemAsync(TOKEN_KEY);
+  },
+
+  async getRefreshToken() {
+    return await SecureStore.getItemAsync(REFRESH_TOKEN_KEY);
+  },
+
+  async refreshToken() {
+    const refreshToken = await this.getRefreshToken();
+    if (!refreshToken) return null;
+
+    try {
+      const response = await fetchWithTimeout(`${API_CONFIG.BASE_URL}/api/auth/refresh`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refresh_token: refreshToken }),
+      });
+
+      if (!response.ok) {
+        await this.logout();
+        return null;
+      }
+
+      const data = await response.json();
+      if (data.access_token) {
+        await SecureStore.setItemAsync(TOKEN_KEY, data.access_token);
+        return data.access_token;
+      }
+      return null;
+    } catch (error) {
+      console.error("AuthService.refreshToken Error:", error);
+      return null;
+    }
   },
 
   async isAuthenticated() {

@@ -7,7 +7,6 @@ const { RNAndroidNotificationListener } = NativeModules;
 const STORE_KEY = '@last_detected_transaction';
 const NOTIFICATION_PREF_KEY = '@notifications_enabled';
 const PROCESSED_KEYS = '@processed_transaction_keys';
-const LAST_NOTIFICATION_ID = '@last_notification_id';
 
 // Common SMS App Package Names
 const SMS_PACKAGES = [
@@ -123,7 +122,15 @@ export const SmsService = {
         return {
           amount,
           merchant: merchant || sender,
-          date: new Date().toISOString().split('T')[0],
+          date: (() => {
+            const now = new Date();
+            const pad = (n: number) => n.toString().padStart(2, '0');
+            let hours = now.getHours();
+            const ampm = hours >= 12 ? 'PM' : 'AM';
+            hours = hours % 12;
+            hours = hours ? hours : 12;
+            return `${pad(now.getDate())}-${pad(now.getMonth() + 1)}-${now.getFullYear()} ${pad(hours)}:${pad(now.getMinutes())} ${ampm}`;
+          })(),
           originalText: body
         };
       }
@@ -182,8 +189,9 @@ export const SmsService = {
         trigger: null,
       });
 
-      // Save notification ID so we can dismiss it later
-      await AsyncStorage.setItem(LAST_NOTIFICATION_ID, notificationId);
+      // Save notification ID with the transaction so we can dismiss it later if opened manually
+      const txWithId = { ...tx, notifId: notificationId };
+      await AsyncStorage.setItem(STORE_KEY, JSON.stringify(txWithId));
       
       console.log('Processed Banking SMS:', tx);
     } catch (e) {
@@ -235,12 +243,10 @@ export const SmsService = {
     }
   },
 
-  async dismissTransactionNotification() {
+  async dismissTransactionNotification(notificationId?: string) {
     try {
-      const notificationId = await AsyncStorage.getItem(LAST_NOTIFICATION_ID);
       if (notificationId) {
         await Notifications.dismissNotificationAsync(notificationId);
-        await AsyncStorage.removeItem(LAST_NOTIFICATION_ID);
       }
     } catch (e) {
       console.error('Error dismissing notification:', e);

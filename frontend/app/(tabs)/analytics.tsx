@@ -8,6 +8,9 @@ import { Ionicons } from '@expo/vector-icons';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useFocusEffect } from '@react-navigation/native';
 import { apiService, ExpenseRecord } from '../../services/apiService';
+import { Modal } from 'react-native';
+import { HistoryItem } from '../../components/HistoryItem';
+import { EditExpenseModal } from '../../components/EditExpenseModal';
 
 const { width } = Dimensions.get('window');
 
@@ -79,6 +82,10 @@ export default function AnalyticsScreen() {
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
   const [maxDailySpend, setMaxDailySpend] = useState(0);
 
+  const [isDayModalVisible, setIsDayModalVisible] = useState(false);
+  const [selectedExpense, setSelectedExpense] = useState<ExpenseRecord | null>(null);
+  const [isEditModalVisible, setIsEditModalVisible] = useState(false);
+
   const monthScrollRef = useRef<ScrollView>(null);
 
   // ── Fetch data on focus ──
@@ -96,6 +103,46 @@ export default function AnalyticsScreen() {
   };
 
   useFocusEffect(useCallback(() => { loadData(); }, []));
+
+  // ── Handlers for Modal Edit / Delete ──
+  const handleEditPress = (item: ExpenseRecord) => {
+    setSelectedExpense(item);
+    setIsEditModalVisible(true);
+  };
+
+  const handleUpdate = async (updatedData: any) => {
+    if (!selectedExpense) return;
+    try {
+      const result = await apiService.updateExpense(selectedExpense.id, updatedData);
+      if (result.success) {
+        setIsEditModalVisible(false);
+        loadData();
+      }
+    } catch (error) {
+      console.error("Update Failed", error);
+    }
+  };
+
+  const handleDelete = async (id: number) => {
+    try {
+      const result = await apiService.deleteExpense(id);
+      if (result.success) {
+        loadData();
+        // If they delete the last transaction of the day, close modal
+        const remaining = dayExpenses.filter(e => e.id !== id);
+        if (remaining.length === 0) setIsDayModalVisible(false);
+      }
+    } catch (error) {
+      console.error("Delete Failed", error);
+    }
+  };
+
+  // ── Filter day expenses ──
+  const dayExpenses = allExpenses.filter(exp => {
+    if (selectedDay === null) return false;
+    const d = parseExpenseDate(exp.date);
+    return d && d.getDate() === selectedDay && d.getMonth() === selectedMonth && d.getFullYear() === selectedYear;
+  });
 
   // ── Recalculate whenever period or data changes ──
   useEffect(() => {
@@ -318,7 +365,11 @@ export default function AnalyticsScreen() {
 
               {/* Day detail tooltip */}
               {selectedDay !== null && dailySpend[selectedDay] && (
-                <View style={styles.dayDetail}>
+                <TouchableOpacity 
+                  style={styles.dayDetail} 
+                  activeOpacity={0.7} 
+                  onPress={() => setIsDayModalVisible(true)}
+                >
                   <View style={styles.dayDetailRow}>
                     <Ionicons name="calendar" size={16} color="#FFFFFF" />
                     <Text style={styles.dayDetailDate}>
@@ -337,7 +388,10 @@ export default function AnalyticsScreen() {
                       {dailySpend[selectedDay].count}
                     </Text>
                   </View>
-                </View>
+                  <View style={{ alignItems: 'center', marginTop: 8 }}>
+                    <Text style={{ color: '#aaa', fontSize: 11, textTransform: 'uppercase', letterSpacing: 1 }}>Tap to view details</Text>
+                  </View>
+                </TouchableOpacity>
               )}
             </Animated.View>
 
@@ -412,6 +466,48 @@ export default function AnalyticsScreen() {
           </>
         )}
       </ScrollView>
+
+      {/* ── Day Transactions Modal ── */}
+      <Modal
+        visible={isDayModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setIsDayModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContentWrapper}>
+            <View style={styles.modalCapsule} />
+            <View style={styles.modalHeaderBox}>
+              <Text style={styles.modalTitle}>
+                {selectedDay} {MONTHS[selectedMonth]} Transactions
+              </Text>
+              <TouchableOpacity onPress={() => setIsDayModalVisible(false)}>
+                <Ionicons name="close-circle" size={28} color="#444" />
+              </TouchableOpacity>
+            </View>
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
+              {dayExpenses.map((tx, idx) => (
+                <HistoryItem 
+                  key={tx.id} 
+                  item={tx} 
+                  index={idx}
+                  onPress={() => handleEditPress(tx)}
+                  onDelete={handleDelete}
+                />
+              ))}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── Edit Modal ── */}
+      <EditExpenseModal 
+        visible={isEditModalVisible}
+        title="Update Transaction"
+        initialData={selectedExpense}
+        onClose={() => setIsEditModalVisible(false)}
+        onSave={handleUpdate}
+      />
     </View>
   );
 }
@@ -607,5 +703,38 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 14,
     fontWeight: '600',
+  },
+  
+  // Modals
+  modalOverlay: {
+    flex: 1, 
+    justifyContent: 'flex-end', 
+    backgroundColor: 'rgba(0,0,0,0.6)'
+  },
+  modalContentWrapper: {
+    backgroundColor: '#0a0a0a',
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
+    padding: 24,
+    height: '75%',
+    borderWidth: 1,
+    borderColor: '#222',
+  },
+  modalCapsule: {
+    width: 40, height: 5, borderRadius: 3, 
+    backgroundColor: '#333', 
+    alignSelf: 'center', 
+    marginBottom: 20
+  },
+  modalHeaderBox: {
+    flexDirection: 'row', 
+    justifyContent: 'space-between', 
+    alignItems: 'center', 
+    marginBottom: 20
+  },
+  modalTitle: {
+    color: '#fff', 
+    fontSize: 20, 
+    fontWeight: 'bold'
   },
 });
