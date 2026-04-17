@@ -116,7 +116,7 @@ export default function SettingsScreen() {
 
       <ScrollView contentContainerStyle={styles.scroll}>
         <Animated.View entering={FadeInDown.delay(100)} style={styles.header}>
-          <Text style={styles.title}>Settings ⚙️</Text>
+          <Text style={styles.title}>Settings</Text>
         </Animated.View>
 
         <Animated.View entering={FadeInDown.delay(200)} style={styles.section}>

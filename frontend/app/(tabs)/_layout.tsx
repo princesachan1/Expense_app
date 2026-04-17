@@ -37,6 +37,10 @@ export default function TabLayout() {
     DeviceEventEmitter.emit('triggerGallery');
   };
 
+  const handleVoice = () => {
+    DeviceEventEmitter.emit('triggerVoice');
+  };
+
   return (
     <>
       <Tabs
@@ -119,6 +123,7 @@ export default function TabLayout() {
         onScan={handleScan}
         onGallery={handleGallery}
         onManual={handleManual}
+        onVoice={handleVoice}
       />
     </>
   );

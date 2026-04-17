@@ -44,7 +44,14 @@
       "react-native-document-scanner-plugin",
       "@react-native-community/datetimepicker",
       "expo-notifications",
-      "./plugins/withNotificationListener"
+      "./plugins/withNotificationListener",
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "InstantLedger needs microphone access to hear your voice commands for adding expenses.",
+          "speechRecognitionPermission": "InstantLedger needs speech recognition to convert your voice into expense entries."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

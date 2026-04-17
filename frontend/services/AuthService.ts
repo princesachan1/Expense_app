@@ -113,15 +113,29 @@ export const AuthService = {
   },
 
   async getCurrentUser() {
-    const token = await this.getToken();
+    let token = await this.getToken();
     if (!token) return null;
 
     try {
-      const response = await fetchWithTimeout(`${API_CONFIG.BASE_URL}/api/auth/me`, {
+      let response = await fetchWithTimeout(`${API_CONFIG.BASE_URL}/api/auth/me`, {
         headers: { 'Authorization': `Bearer ${token}` },
       });
 
+      // If access token expired, try refreshing before giving up
       if (response.status === 401) {
+        console.log('[AuthService] getCurrentUser got 401, attempting token refresh...');
+        const newToken = await this.refreshToken();
+        if (newToken) {
+          // Retry with the fresh access token
+          response = await fetchWithTimeout(`${API_CONFIG.BASE_URL}/api/auth/me`, {
+            headers: { 'Authorization': `Bearer ${newToken}` },
+          });
+          if (response.ok) {
+            return await response.json();
+          }
+        }
+        // Refresh failed or retry still 401 → session is truly dead
+        console.warn('[AuthService] Refresh failed in getCurrentUser. Logging out.');
         await this.logout();
         return null;
       }
@@ -133,11 +147,11 @@ export const AuthService = {
   },
 
   async updateProfile(fullName: string) {
-    const token = await this.getToken();
+    let token = await this.getToken();
     if (!token) return { success: false, detail: 'Not authenticated' };
 
     try {
-      const response = await fetchWithTimeout(`${API_CONFIG.BASE_URL}/api/auth/profile`, {
+      let response = await fetchWithTimeout(`${API_CONFIG.BASE_URL}/api/auth/profile`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -145,6 +159,22 @@ export const AuthService = {
         },
         body: JSON.stringify({ full_name: fullName }),
       });
+
+      // If access token expired, try refreshing before giving up
+      if (response.status === 401) {
+        const newToken = await this.refreshToken();
+        if (newToken) {
+          response = await fetchWithTimeout(`${API_CONFIG.BASE_URL}/api/auth/profile`, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${newToken}`
+            },
+            body: JSON.stringify({ full_name: fullName }),
+          });
+        }
+      }
+
       return await response.json();
     } catch (error: any) {
       return { success: false, detail: error.message };

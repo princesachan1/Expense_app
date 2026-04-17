@@ -21,6 +21,7 @@ export const EditExpenseModal: React.FC<EditExpenseModalProps> = ({
 }) => {
   const [formData, setFormData] = useState(initialData);
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showTimePicker, setShowTimePicker] = useState(false);
 
   useEffect(() => {
     if (initialData) {
@@ -31,36 +32,73 @@ export const EditExpenseModal: React.FC<EditExpenseModalProps> = ({
     }
   }, [initialData, visible]);
 
-  const onDateChange = (event: any, selectedDate?: Date) => {
-    setShowDatePicker(false);
-    if (selectedDate) {
-      // Store in YYYY-MM-DD format
-      const year = selectedDate.getFullYear();
-      const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
-      const day = String(selectedDate.getDate()).padStart(2, '0');
-      const dateString = `${year}-${month}-${day}`;
-      setFormData({ ...formData, date: dateString });
-    }
-  };
-
-  const parseDate = (dateStr: string) => {
+  // Parse stored "YYYY-MM-DD HH:mm" or "YYYY-MM-DD" into a Date
+  const parseDateTime = (dateStr: string) => {
     if (!dateStr) return new Date();
-    const parts = dateStr.split('-');
+    // Split date and time parts
+    const [datePart, timePart] = dateStr.split(' ');
+    const parts = datePart.split('-');
     if (parts.length === 3) {
-      // YYYY-MM-DD
-      return new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+      const year = parseInt(parts[0]);
+      const month = parseInt(parts[1]) - 1;
+      const day = parseInt(parts[2]);
+      if (timePart) {
+        const [hours, minutes] = timePart.split(':').map(Number);
+        return new Date(year, month, day, hours, minutes);
+      }
+      return new Date(year, month, day);
     }
     return new Date();
   };
 
+  // Build "YYYY-MM-DD HH:mm" from current formData.date + a new date or time
+  const buildDateTimeString = (date: Date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    return `${year}-${month}-${day} ${hours}:${minutes}`;
+  };
+
+  const onDateChange = (event: any, selectedDate?: Date) => {
+    setShowDatePicker(false);
+    if (selectedDate) {
+      // Preserve existing time from formData, only update the date part
+      const existing = parseDateTime(formData?.date);
+      selectedDate.setHours(existing.getHours(), existing.getMinutes());
+      setFormData({ ...formData, date: buildDateTimeString(selectedDate) });
+    }
+  };
+
+  const onTimeChange = (event: any, selectedTime?: Date) => {
+    setShowTimePicker(false);
+    if (selectedTime) {
+      // Preserve existing date from formData, only update the time part
+      const existing = parseDateTime(formData?.date);
+      existing.setHours(selectedTime.getHours(), selectedTime.getMinutes());
+      setFormData({ ...formData, date: buildDateTimeString(existing) });
+    }
+  };
+
   const formatDateDisplay = (dateStr: string) => {
     if (!dateStr) return 'Select Date';
-    const parts = dateStr.split('-');
+    const [datePart] = dateStr.split(' ');
+    const parts = datePart.split('-');
     if (parts.length === 3) {
-      // Display as DD/MM/YYYY
       return `${parts[2]}/${parts[1]}/${parts[0]}`;
     }
     return dateStr;
+  };
+
+  const formatTimeDisplay = (dateStr: string) => {
+    if (!dateStr) return 'Set Time';
+    const [, timePart] = dateStr.split(' ');
+    if (!timePart) return 'Set Time';
+    const [h, m] = timePart.split(':').map(Number);
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    const h12 = h % 12 || 12;
+    return `${h12}:${String(m).padStart(2, '0')} ${ampm}`;
   };
 
   if (!visible) return null;
@@ -115,24 +153,46 @@ export const EditExpenseModal: React.FC<EditExpenseModalProps> = ({
                 </View>
 
                 <View style={styles.inputGroup}>
-                  <Text style={styles.label}>Date</Text>
-                  <TouchableOpacity 
-                    style={styles.input} 
-                    onPress={() => setShowDatePicker(true)}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={[styles.dateText, !formData?.date && { color: '#444' }]}>
-                      {formatDateDisplay(formData?.date)}
-                    </Text>
-                    <Ionicons name="calendar-outline" size={20} color="#777" />
-                  </TouchableOpacity>
+                  <Text style={styles.label}>Date & Time</Text>
+                  <View style={styles.dateTimeRow}>
+                    <TouchableOpacity 
+                      style={[styles.input, styles.dateTimeInput]} 
+                      onPress={() => setShowDatePicker(true)}
+                      activeOpacity={0.7}
+                    >
+                      <Ionicons name="calendar-outline" size={18} color="#777" />
+                      <Text style={[styles.dateText, !formData?.date && { color: '#444' }]}>
+                        {formatDateDisplay(formData?.date)}
+                      </Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity 
+                      style={[styles.input, styles.dateTimeInput]} 
+                      onPress={() => setShowTimePicker(true)}
+                      activeOpacity={0.7}
+                    >
+                      <Ionicons name="time-outline" size={18} color="#777" />
+                      <Text style={[styles.dateText, !formData?.date?.includes(' ') && { color: '#444' }]}>
+                        {formatTimeDisplay(formData?.date)}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
 
                   {showDatePicker && (
                     <DateTimePicker
-                      value={parseDate(formData?.date)}
+                      value={parseDateTime(formData?.date)}
                       mode="date"
                       display={Platform.OS === 'ios' ? 'spinner' : 'default'}
                       onChange={onDateChange}
+                    />
+                  )}
+                  {showTimePicker && (
+                    <DateTimePicker
+                      value={parseDateTime(formData?.date)}
+                      mode="time"
+                      display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                      onChange={onTimeChange}
+                      is24Hour={false}
                     />
                   )}
                 </View>
@@ -299,7 +359,15 @@ const styles = StyleSheet.create({
   },
   dateText: {
     color: '#fff',
-    fontSize: 16,
+    fontSize: 15,
+  },
+  dateTimeRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  dateTimeInput: {
+    flex: 1,
+    gap: 8,
   },
   categoryRow: {
     flexDirection: 'row',

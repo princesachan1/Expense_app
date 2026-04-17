@@ -23,6 +23,17 @@ AMOUNT_PATTERNS = [
     (r'=\s*[₹Rs\.]*\s*(\d+(?:\.\d{1,2})?)(?!\d)\s*(?:only|rupees)?', 'num', 0.92),
     (r'net\s*(?:amount|amt)?\s*[:]*\s*(?:Rs\.?|₹|INR)?[\s]*([\d,]+(?:\.\d{1,2})?)(?!\d)', 'num', 0.90),
     (r'(?:fare|amount|charge)\s*[:=]*\s*(?:Rs\.?|₹|INR)?[\s]*(\d+(?:\.\d{1,2})?)(?!\d)', 'num', 0.88),
+    
+    # --- VOICE SPECIFIC PATTERNS ---
+    (r'(?:₹|rs\.?|inr|rupees?)\s*(\d[\d,]*\.?\d*)', 'num', 0.85),       # ₹500, rupees 500
+    (r'(\d[\d,]*\.?\d*)\s*(?:₹|rs\.?|inr|rupees?)', 'num', 0.84),       # 500 rupees
+    (r'(?:spent|paid|gave|cost|charged|for)\s+(\d[\d,]*\.?\d*)', 'num', 0.82), # spent 500
+    (r'(\d[\d,]*\.?\d*)\s+(?:spent|paid|for|on|at)', 'num', 0.81),      # 500 spent
+    
+    # --- WORD-BASED AMOUNTS ---
+    (r'(?:spent|paid|for)\s+([a-zA-Z\s]+(?:hundred|thousand|lakh|crore|ten|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety)[a-zA-Z\s]*)', 'words', 0.81),
+    (r'([a-zA-Z\s]+(?:hundred|thousand|lakh|crore|ten|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety)[a-zA-Z\s]*)\s+rupees?', 'words', 0.80),
+
     (r'(?:Rs\.?|₹)\s*([\d,]+(?:\.\d{1,2})?)(?!\d)', 'num', 0.75),
 ]
 

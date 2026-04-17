@@ -336,6 +336,37 @@ def delete_expense(
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+# ──────────────────────────────────────────
+# VOICE EXTRACTION ENDPOINT
+# ──────────────────────────────────────────
+
+class VoiceExtractRequest(BaseModel):
+    transcription: str
+
+@app.post("/api/extract-voice")
+def extract_voice(
+    data: VoiceExtractRequest,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Parse a natural-language voice transcription into structured expense data.
+    """
+    from voice_logic import handle_voice_extraction
+    
+    text = data.transcription.strip()
+    if not text:
+        raise HTTPException(status_code=400, detail="Empty transcription")
+
+    print(f"DEBUG Voice extraction for user '{current_user.username}': \"{text}\"")
+
+    try:
+        structured = handle_voice_extraction(text)
+        print(f"DEBUG Voice extraction result: {structured}")
+        return {"success": True, "structured_data": structured}
+    except Exception as e:
+        print(f"DEBUG Voice extraction failed: {e}")
+        raise HTTPException(status_code=500, detail="Failed to process voice input")
+
 @app.get("/")
 def read_root():
     return {"status": "AI Multi-User Backend is Running!"}

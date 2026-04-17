@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity,
   ActivityIndicator, ScrollView, Dimensions, Alert,
@@ -7,11 +7,15 @@ import {
 import * as ImagePicker from 'expo-image-picker';
 import DocumentScanner from 'react-native-document-scanner-plugin';
 import { Ionicons } from '@expo/vector-icons';
-import Animated, { FadeInDown } from 'react-native-reanimated';
+import Animated, { FadeInDown, useSharedValue, useAnimatedStyle, withRepeat, withTiming, Easing } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
 import { BlurView } from 'expo-blur';
+import {
+  ExpoSpeechRecognitionModule,
+  useSpeechRecognitionEvent,
+} from 'expo-speech-recognition';
 
 const { RNAndroidNotificationListener } = NativeModules;
 
@@ -67,6 +71,29 @@ export default function HomeScreen() {
   const [extractedData, setExtractedData] = useState<StructuredData | null>(null);
   const [isEditModalVisible, setIsEditModalVisible] = useState(false);
 
+  // Voice state
+  const [isListening, setIsListening] = useState(false);
+  const [isProcessingVoice, setIsProcessingVoice] = useState(false);
+  const [liveTranscript, setLiveTranscript] = useState('');
+
+  // Pulse animation for mic
+  const pulseScale = useSharedValue(1);
+  const pulseAnimStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: pulseScale.value }],
+  }));
+
+  useEffect(() => {
+    if (isListening) {
+      pulseScale.value = withRepeat(
+        withTiming(1.3, { duration: 800, easing: Easing.inOut(Easing.ease) }),
+        -1,
+        true
+      );
+    } else {
+      pulseScale.value = withTiming(1, { duration: 300 });
+    }
+  }, [isListening]);
+
   // ── Load & compute ──
   const loadHistory = async () => {
     try {
@@ -121,16 +148,26 @@ export default function HomeScreen() {
       setExtractedData({
         merchant: '',
         total: '',
-        date: new Date().toISOString().split('T')[0],
+        date: (() => {
+          const now = new Date();
+          const y = now.getFullYear();
+          const mo = String(now.getMonth() + 1).padStart(2, '0');
+          const d = String(now.getDate()).padStart(2, '0');
+          const h = String(now.getHours()).padStart(2, '0');
+          const mi = String(now.getMinutes()).padStart(2, '0');
+          return `${y}-${mo}-${d} ${h}:${mi}`;
+        })(),
         category: 'Other',
         gstno: '',
       });
       setIsEditModalVisible(true);
     });
+    const voiceSub = DeviceEventEmitter.addListener('triggerVoice', onVoice);
     return () => {
       scanSub.remove();
       gallerySub.remove();
       manualSub.remove();
+      voiceSub.remove();
     };
   }, []);
 
@@ -201,6 +238,81 @@ export default function HomeScreen() {
     }
   };
 
+  useSpeechRecognitionEvent('result', (event) => {
+    // Collect the most recent transcript from the results array
+    const transcript = event.results.map(r => r.transcript).join(' ');
+    console.log('[Voice] Result:', transcript);
+    setLiveTranscript(transcript);
+  });
+
+  useSpeechRecognitionEvent('end', () => {
+    console.log('[Voice] Recognition ended.');
+    setIsListening(false);
+  });
+
+  useSpeechRecognitionEvent('error', (event) => {
+    console.error('[Voice] Error:', event.error, event.message);
+    setIsListening(false);
+    setIsProcessingVoice(false);
+    setLiveTranscript('');
+    Alert.alert('Voice Error', event.message || 'Speech recognition failed.');
+  });
+
+  const onVoice = async () => {
+    console.log('[Voice] Starting recognition...');
+    const { granted } = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
+    if (!granted) {
+      Alert.alert('Permission Required', 'Microphone access is needed.');
+      return;
+    }
+
+    prewarmBackend();
+    setLiveTranscript('');
+    setIsListening(true);
+
+    ExpoSpeechRecognitionModule.start({
+      lang: 'en-IN',
+      interimResults: true,
+      continuous: true, // Stay listening even during pauses
+      maxAlternatives: 1,
+    });
+  };
+
+  const stopListeningAndProcess = async () => {
+    console.log('[Voice] Stopping and processing:', liveTranscript);
+    ExpoSpeechRecognitionModule.stop();
+    setIsListening(false);
+
+    const transcript = liveTranscript.trim();
+    if (!transcript) {
+      Alert.alert('No Speech detected', 'Please try speaking again.');
+      return;
+    }
+
+    setIsProcessingVoice(true);
+    try {
+      const result = await apiService.extractVoice(transcript);
+      if (result.success && result.structured_data) {
+        setExtractedData(result.structured_data);
+        setIsEditModalVisible(true);
+      } else {
+        Alert.alert('Extraction Failed', 'Could not parse your voice input.');
+      }
+    } catch {
+      Alert.alert('Connection Error', 'Could not reach the server.');
+    } finally {
+      setIsProcessingVoice(false);
+      setLiveTranscript('');
+    }
+  };
+
+  const cancelVoice = () => {
+    ExpoSpeechRecognitionModule.stop();
+    setIsListening(false);
+    setIsProcessingVoice(false);
+    setLiveTranscript('');
+  };
+
   // ── Save ──
   const onSaveExpense = async (finalData: any) => {
     try {
@@ -230,6 +342,44 @@ export default function HomeScreen() {
           <View style={styles.overlayContent}>
             <ActivityIndicator size="large" color="#FFFFFF" />
             <Text style={styles.overlayText}>AI is reading your receipt…</Text>
+          </View>
+        </View>
+      )}
+
+      {/* Voice listening overlay */}
+      {(isListening || isProcessingVoice) && (
+        <View style={styles.overlay}>
+          <BlurView intensity={60} style={StyleSheet.absoluteFill} tint="dark" />
+          <View style={styles.voiceOverlayContent}>
+            {isProcessingVoice ? (
+              <>
+                <ActivityIndicator size="large" color="#FFFFFF" />
+                <Text style={styles.voiceTitle}>Processing AI…</Text>
+              </>
+            ) : (
+              <>
+                <Animated.View style={[styles.micCircle, pulseAnimStyle]}>
+                  <View style={styles.micBwBg}>
+                    <Ionicons name="mic" size={48} color="#000" />
+                  </View>
+                </Animated.View>
+                <Text style={styles.voiceTitle}>Listening…</Text>
+                <Text style={styles.voiceHint}>Speak your expense clearly</Text>
+                {liveTranscript ? (
+                  <View style={styles.transcriptBox}>
+                    <Text style={styles.transcriptText}>{liveTranscript}</Text>
+                  </View>
+                ) : null}
+                <View style={styles.voiceBtnRow}>
+                  <TouchableOpacity style={styles.voiceCancelBtn} onPress={cancelVoice}>
+                    <Text style={styles.voiceCancelText}>Cancel</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.voiceDoneBtn} onPress={stopListeningAndProcess}>
+                    <Text style={styles.voiceDoneText}>Process</Text>
+                  </TouchableOpacity>
+                </View>
+              </>
+            )}
           </View>
         </View>
       )}
@@ -485,5 +635,84 @@ const styles = StyleSheet.create({
     color: '#777',
     fontSize: 12,
     marginTop: 2,
+  },
+
+  // Voice overlay
+  voiceOverlayContent: {
+    alignItems: 'center',
+    paddingHorizontal: 30,
+  },
+  micCircle: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: '#fff',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 24,
+    shadowColor: '#fff',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.3,
+    shadowRadius: 20,
+  },
+  micBwBg: {
+    width: '100%',
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  voiceTitle: {
+    color: '#fff',
+    fontSize: 24,
+    fontWeight: 'bold',
+    letterSpacing: 1,
+    marginBottom: 8,
+  },
+  voiceHint: {
+    color: '#666',
+    fontSize: 14,
+    marginBottom: 32,
+  },
+  transcriptBox: {
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 40,
+    width: width * 0.8,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+  },
+  transcriptText: {
+    color: '#fff',
+    fontSize: 18,
+    textAlign: 'center',
+    fontStyle: 'italic',
+  },
+  voiceBtnRow: {
+    flexDirection: 'row',
+    gap: 16,
+  },
+  voiceCancelBtn: {
+    paddingHorizontal: 30,
+    paddingVertical: 14,
+    borderRadius: 30,
+    borderWidth: 1,
+    borderColor: '#333',
+  },
+  voiceCancelText: {
+    color: '#999',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  voiceDoneBtn: {
+    paddingHorizontal: 40,
+    paddingVertical: 14,
+    borderRadius: 30,
+    backgroundColor: '#fff',
+  },
+  voiceDoneText: {
+    color: '#000',
+    fontSize: 16,
+    fontWeight: 'bold',
   },
 });

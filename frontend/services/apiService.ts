@@ -153,5 +153,24 @@ export const apiService = {
       console.error("apiService.deleteExpense Error:", error);
       throw error;
     }
+  },
+
+  /**
+   * Sends a voice transcription to the backend for AI extraction.
+   */
+  async extractVoice(transcription: string): Promise<ExtractionResponse> {
+    console.log(`[API] Sending transcription to backend: "${transcription}"`);
+    try {
+      const response = await safeFetch(`${API_CONFIG.BASE_URL}/api/extract-voice`, {
+        method: 'POST',
+        body: JSON.stringify({ transcription }),
+      });
+      const result = await response.json();
+      console.log('[API] Voice extraction result:', result);
+      return result;
+    } catch (error) {
+      console.error("[API] extractVoice Error:", error);
+      throw error;
+    }
   }
 };

@@ -19,7 +19,7 @@ function parseExpenseDate(raw: string | undefined | null): Date {
 
   const datePart = raw.split(' ')[0];
   const timePart = raw.split(' ').slice(1).join(' ');
-  
+
   const parts = datePart.split(/[-/]/);
   if (parts.length === 3) {
     let day = parseInt(parts[0], 10);
@@ -36,16 +36,16 @@ function parseExpenseDate(raw: string | undefined | null): Date {
       let hours = 0;
       let minutes = 0;
       if (timePart) {
-          const timeMatch = timePart.match(/(\d+):(\d+)\s*(AM|PM)?/i);
-          if (timeMatch) {
-              hours = parseInt(timeMatch[1], 10);
-              minutes = parseInt(timeMatch[2], 10);
-              const ampm = timeMatch[3];
-              if (ampm) {
-                  if (ampm.toUpperCase() === 'PM' && hours < 12) hours += 12;
-                  if (ampm.toUpperCase() === 'AM' && hours === 12) hours = 0;
-              }
+        const timeMatch = timePart.match(/(\d+):(\d+)\s*(AM|PM)?/i);
+        if (timeMatch) {
+          hours = parseInt(timeMatch[1], 10);
+          minutes = parseInt(timeMatch[2], 10);
+          const ampm = timeMatch[3];
+          if (ampm) {
+            if (ampm.toUpperCase() === 'PM' && hours < 12) hours += 12;
+            if (ampm.toUpperCase() === 'AM' && hours === 12) hours = 0;
           }
+        }
       }
       return new Date(year, month, day, hours, minutes);
     }
@@ -60,7 +60,7 @@ export default function HistoryScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [totalSpent, setTotalSpent] = useState(0);
-  
+
   // Edit State
   const [selectedExpense, setSelectedExpense] = useState<ExpenseRecord | null>(null);
   const [isEditModalVisible, setIsEditModalVisible] = useState(false);
@@ -73,14 +73,14 @@ export default function HistoryScreen() {
         const sorted = [...result.expenses].sort((a, b) => {
           const dateA = parseExpenseDate(a.date).getTime();
           const dateB = parseExpenseDate(b.date).getTime();
-          
+
           if (dateA === dateB) {
             // Tie-breaker: fallback to created_at descending
             return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
           }
           return dateB - dateA;
         });
-        
+
         setExpenses(sorted);
         const total = sorted.reduce((sum, exp) => sum + exp.total, 0);
         setTotalSpent(total);
@@ -107,7 +107,7 @@ export default function HistoryScreen() {
 
   const handleUpdate = async (updatedData: any) => {
     if (!selectedExpense) return;
-    
+
     try {
       const result = await apiService.updateExpense(selectedExpense.id, updatedData);
       if (result.success) {
@@ -134,12 +134,12 @@ export default function HistoryScreen() {
     <View style={styles.container}>
       <LinearGradient colors={['#1a1a1a', '#000000']} style={StyleSheet.absoluteFill} />
 
-      <ScrollView 
-        contentContainerStyle={styles.scroll} 
+      <ScrollView
+        contentContainerStyle={styles.scroll}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#FFFFFF" />}
       >
         <Animated.View entering={FadeInDown.delay(100)} style={styles.header}>
-          <Text style={styles.title}>History 📊</Text>
+          <Text style={styles.title}>History</Text>
           <View style={styles.statsCard}>
             <LinearGradient colors={['#222', '#111']} style={styles.statsGradient}>
               <View style={styles.statItem}>
@@ -166,10 +166,10 @@ export default function HistoryScreen() {
             </View>
           ) : (
             expenses.map((item, index) => (
-              <HistoryItem 
-                key={item.id} 
-                item={item} 
-                index={index} 
+              <HistoryItem
+                key={item.id}
+                item={item}
+                index={index}
                 onPress={() => handleEditPress(item)}
                 onDelete={handleDelete}
               />
@@ -178,7 +178,7 @@ export default function HistoryScreen() {
         </View>
       </ScrollView>
 
-      <EditExpenseModal 
+      <EditExpenseModal
         visible={isEditModalVisible}
         title="Update Transaction"
         initialData={selectedExpense}

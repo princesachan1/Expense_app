@@ -60,7 +60,7 @@ def predict_category_from_text(text: str):
         predicted = max(doc.cats, key=doc.cats.get)
         confidence = doc.cats[predicted]
         
-        print(f"🧠 [spaCy NER] Text: '{text}' | Predicted: '{predicted}' | Confidence: {confidence:.2f}")
+        print(f"DEBUG [spaCy NER] Text: '{text}' | Predicted: '{predicted}' | Confidence: {confidence:.2f}")
         
         # Only trust the ML model if it's reasonably confident
         if confidence > 0.70:
@@ -73,11 +73,11 @@ def predict_category_from_text(text: str):
     text_lower = text.lower()
     
     # 1. Food (Expanded for Indian cuisine and snacks)
-    if any(k in text_lower for k in ["food", "dinner", "lunch", "breakfast", "restaurant", "swiggy", "zomato", "pizza", "burger", "samosa", "samose", "bhature", "chole", "kulche", "paratha", "naan", "roti", "biryani", "rice", "dal", "paneer", "chicken", "mutton", "fish", "egg", "tea", "coffee", "chai", "frappe", "nescafe", "starbucks", "icecream", "ice cream", "sweet", "namkeen", "snack", "noodle", "momos", "momo", "colddrink", "cold drink", "beverage", "water", "drink", "aloo", "veg", "thali", "dosa", "idli", "waffle", "cafe", "dhaba"]): 
+    if any(k in text_lower for k in ["food", "dinner", "lunch", "breakfast", "restaurant", "swiggy", "zomato", "pizza", "burger", "samosa", "samose", "bhature", "chole", "kulche", "paratha", "naan", "roti", "biryani", "rice", "dal", "paneer", "chicken", "mutton", "fish", "egg", "tea", "coffee", "chai", "frappe", "nescafe", "starbucks", "icecream", "ice cream", "sweet", "namkeen", "snack", "snacks", "noodle", "momos", "momo", "colddrink", "cold drink", "beverage", "water", "drink", "aloo", "veg", "thali", "dosa", "idli", "waffle", "cafe", "dhaba"]): 
         return "Food"
     
     # 2. Groceries
-    if any(k in text_lower for k in ["grocery", "milk", "bread", "butter", "vegetable", "fruit", "supermarket", "mart", "bazaar", "blinkit", "zepto", "instamart", "bigbasket"]): 
+    if any(k in text_lower for k in ["grocery", "groceries", "milk", "bread", "butter", "vegetable", "fruit", "supermarket", "mart", "bazaar", "blinkit", "zepto", "instamart", "bigbasket"]): 
         return "Groceries"
         
     # 3. Fuel & Transport
@@ -148,7 +148,7 @@ def extract_entities(extracted_lines):
         raw_pred = max(doc.cats, key=doc.cats.get)
         confidence = doc.cats[raw_pred]
         
-        print(f"[spaCy NER] OCR Entity categorization | Predicted: '{raw_pred}' | Confidence: {confidence:.2f}")
+        print(f"DEBUG [spaCy NER] OCR Entity categorization | Predicted: '{raw_pred}' | Confidence: {confidence:.2f}")
         
         if confidence > 0.70:
             matched = False

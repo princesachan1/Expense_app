@@ -12,9 +12,10 @@ interface QuickActionModalProps {
   onScan: () => void;
   onGallery: () => void;
   onManual: () => void;
+  onVoice: () => void;
 }
 
-export function QuickActionModal({ visible, onClose, onScan, onGallery, onManual }: QuickActionModalProps) {
+export function QuickActionModal({ visible, onClose, onScan, onGallery, onManual, onVoice }: QuickActionModalProps) {
   const [animation] = React.useState(new RNAnimated.Value(0));
 
   React.useEffect(() => {
@@ -83,6 +84,22 @@ export function QuickActionModal({ visible, onClose, onScan, onGallery, onManual
             <View style={styles.optionTextContainer}>
               <Text style={styles.optionTitle}>Manual Entry</Text>
               <Text style={styles.optionSub}>Type in expense details</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color="#444" />
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.option} onPress={() => { onVoice(); onClose(); }}>
+            <LinearGradient
+              colors={['#6366F1', '#8B5CF6']}
+              style={styles.iconBg}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+            >
+              <Ionicons name="mic-outline" size={24} color="#FFFFFF" />
+            </LinearGradient>
+            <View style={styles.optionTextContainer}>
+              <Text style={styles.optionTitle}>Voice Add</Text>
+              <Text style={styles.optionSub}>Say it and we'll log it</Text>
             </View>
             <Ionicons name="chevron-forward" size={20} color="#444" />
           </TouchableOpacity>

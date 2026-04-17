@@ -296,7 +296,7 @@ export default function AnalyticsScreen() {
 
         {/* Header */}
         <Animated.View entering={FadeInDown.delay(100)} style={styles.header}>
-          <Text style={styles.title}>Analytics 📈</Text>
+          <Text style={styles.title}>Analytics</Text>
         </Animated.View>
 
         {/* ── Year Selector ── */}
@@ -365,9 +365,9 @@ export default function AnalyticsScreen() {
 
               {/* Day detail tooltip */}
               {selectedDay !== null && dailySpend[selectedDay] && (
-                <TouchableOpacity 
-                  style={styles.dayDetail} 
-                  activeOpacity={0.7} 
+                <TouchableOpacity
+                  style={styles.dayDetail}
+                  activeOpacity={0.7}
                   onPress={() => setIsDayModalVisible(true)}
                 >
                   <View style={styles.dayDetailRow}>
@@ -487,9 +487,9 @@ export default function AnalyticsScreen() {
             </View>
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
               {dayExpenses.map((tx, idx) => (
-                <HistoryItem 
-                  key={tx.id} 
-                  item={tx} 
+                <HistoryItem
+                  key={tx.id}
+                  item={tx}
                   index={idx}
                   onPress={() => handleEditPress(tx)}
                   onDelete={handleDelete}
@@ -501,7 +501,7 @@ export default function AnalyticsScreen() {
       </Modal>
 
       {/* ── Edit Modal ── */}
-      <EditExpenseModal 
+      <EditExpenseModal
         visible={isEditModalVisible}
         title="Update Transaction"
         initialData={selectedExpense}
@@ -704,11 +704,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
   },
-  
+
   // Modals
   modalOverlay: {
-    flex: 1, 
-    justifyContent: 'flex-end', 
+    flex: 1,
+    justifyContent: 'flex-end',
     backgroundColor: 'rgba(0,0,0,0.6)'
   },
   modalContentWrapper: {
@@ -721,20 +721,20 @@ const styles = StyleSheet.create({
     borderColor: '#222',
   },
   modalCapsule: {
-    width: 40, height: 5, borderRadius: 3, 
-    backgroundColor: '#333', 
-    alignSelf: 'center', 
+    width: 40, height: 5, borderRadius: 3,
+    backgroundColor: '#333',
+    alignSelf: 'center',
     marginBottom: 20
   },
   modalHeaderBox: {
-    flexDirection: 'row', 
-    justifyContent: 'space-between', 
-    alignItems: 'center', 
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     marginBottom: 20
   },
   modalTitle: {
-    color: '#fff', 
-    fontSize: 20, 
+    color: '#fff',
+    fontSize: 20,
     fontWeight: 'bold'
   },
 });
