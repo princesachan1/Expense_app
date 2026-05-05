@@ -7,13 +7,8 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# Neon Postgres Connection URL
 DATABASE_URL = os.getenv("DATABASE_URL")
 
-# Create PostgreSQL engine
-# Create PostgreSQL engine with connection pooling fixes for Serverless/Neon
-# pool_pre_ping=True: Checks if connection is alive before using it
-# pool_recycle=300: Recycles connections every 5 mins to prevent stale SSL errors
 engine = create_engine(
     DATABASE_URL, 
     pool_pre_ping=True,
@@ -45,7 +40,7 @@ class Expense(Base):
     category = Column(String(100), nullable=False, default="Other")
     gstno = Column(String(50), nullable=True)
     filename = Column(String(255), nullable=True)
-    items = Column(Text, nullable=True)  # JSON-stringified list of items
+    items = Column(Text, nullable=True)  
     created_at = Column(DateTime, default=datetime.utcnow)
 
     owner = relationship("User", back_populates="expenses")

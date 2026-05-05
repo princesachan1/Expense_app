@@ -1,7 +1,6 @@
 import os
 import spacy
 
-# Initialize the custom spaCy model lazily
 nlp_instance = None
 
 def get_nlp():
@@ -9,7 +8,6 @@ def get_nlp():
     if nlp_instance is None:
         print("Loading Custom spaCy model...")
         try:
-            # Use model-best if it exists, otherwise fallback to model-last
             model_path = "output/model-best" if os.path.exists("output/model-best") else "output/model-last"
             if os.path.exists(model_path):
                 nlp_instance = spacy.load(model_path)
@@ -29,13 +27,11 @@ def warmup_nlp():
     print("Warming up spaCy NER model...")
     nlp = get_nlp()
     if nlp:
-        # Run a dummy prediction to warm up any lazy internals
         nlp("test warmup sentence")
         print("spaCy NER warm-up complete!")
     else:
         print("⚠️  spaCy model not available for warm-up")
 
-# Strict category list as requested
 ALLOWED_CATEGORIES = [
     "Groceries", "Fuel & Transport", "Food", "Bills & Utilities", 
     "Shopping", "Entertainment", "Health", "Education", 
@@ -56,20 +52,16 @@ def predict_category_from_text(text: str):
     doc = nlp(text)
     
     if doc.cats:
-        # Get the highest scoring category from the model
         predicted = max(doc.cats, key=doc.cats.get)
         confidence = doc.cats[predicted]
         
         print(f"DEBUG [spaCy NER] Text: '{text}' | Predicted: '{predicted}' | Confidence: {confidence:.2f}")
-        
-        # Only trust the ML model if it's reasonably confident
+
         if confidence > 0.70:
-            # Exact match check (case-insensitive)
             for cat in ALLOWED_CATEGORIES:
                 if cat.lower() == predicted.lower():
                     return cat
                 
-    # Fallback to expanded keyword matching if model is unsure or prediction is invalid
     text_lower = text.lower()
     
     # 1. Food (Expanded for Indian cuisine and snacks)
@@ -134,8 +126,7 @@ def extract_entities(extracted_lines):
     
     full_text = "\n".join(extracted_lines)
     doc = nlp(full_text)
-    
-    # Extract recognized entities
+
     for ent in doc.ents:
         label = ent.label_
         if label == "MERCHANT": structured_data["merchant"] = ent.text
@@ -143,7 +134,7 @@ def extract_entities(extracted_lines):
         elif label == "DATE": structured_data["date"] = ent.text
         elif label == "ITEM": structured_data["items"].append(ent.text)
     
-    # Predict the best category and ensure it's in the allowed list
+
     if doc.cats:
         raw_pred = max(doc.cats, key=doc.cats.get)
         confidence = doc.cats[raw_pred]
@@ -164,7 +155,6 @@ def extract_entities(extracted_lines):
     else:
         structured_data["category"] = "Other"
 
-    # --- NEW: Merchant Fallback (Top Line) ---
     if not structured_data["merchant"] and extracted_lines:
         first_line = extracted_lines[0].strip()
         if len(first_line) > 2:

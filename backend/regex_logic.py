@@ -60,7 +60,6 @@ def extract_amount(text: str) -> Tuple[Optional[float], float]:
     Parses the OCR text to find the most likely total amount.
     Returns: (Amount, Confidence Score)
     """
-    # Remove time patterns (e.g. 10:30 AM) to avoid matching '10.30' as an amount
     cleaned = re.sub(r'\d{1,2}:\d{2}(:\d{2})?(\s*(?:AM|PM|am|pm))?', ' ', text)
 
     best_amount, best_conf = None, 0.0
@@ -72,9 +71,8 @@ def extract_amount(text: str) -> Tuple[Optional[float], float]:
                 if ptype == 'words':
                     amt = words_to_number(match)
                     if amt and 10 < amt < 10_000_000:
-                        return amt, 1.0 # Word matches are usually high confidence
+                        return amt, 1.0 
                 else:
-                    # Clean commas and spaces
                     amt = float(match.replace(',', '').strip())
                     if 1 < amt < 10_000_000 and priority > best_conf:
                         best_amount, best_conf = amt, priority

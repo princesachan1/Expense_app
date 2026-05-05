@@ -13,7 +13,6 @@ from sqlalchemy.orm import Session
 from datetime import timedelta
 from pydantic import BaseModel
 
-# Import our modular logic
 from paddle_ocr import perform_ocr, warmup_ocr
 from spacy_ner import extract_entities, predict_category_from_text, warmup_nlp
 from regex_logic import apply_fallbacks
@@ -28,13 +27,11 @@ from jose import JWTError, jwt
 
 app = FastAPI(title="Expense AI Backend")
 
-# Thread pool for heavy OCR work — only 1 worker to avoid over-subscribing HF free-tier (2 vCPUs)
 executor = ThreadPoolExecutor(max_workers=1)
 
 @app.on_event("startup")
 def startup_event():
     init_db()
-    # Pre-load ALL ML models at container boot to eliminate cold-start latency
     print("🚀 Pre-loading ML models at startup...")
     warmup_ocr()
     warmup_nlp()
@@ -48,18 +45,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ──────────────────────────────────────────
-# AUTH MODELS
-# ──────────────────────────────────────────
 
 class UserRegister(BaseModel):
     username: str
     password: str
     full_name: str = None
 
-# ──────────────────────────────────────────
-# AUTH HELPERS
-# ──────────────────────────────────────────
 
 def validate_password(password: str):
     """
@@ -76,9 +67,6 @@ def validate_password(password: str):
         return False, "Password must contain at least one letter"
     return True, ""
 
-# ──────────────────────────────────────────
-# AUTH ENDPOINTS
-# ──────────────────────────────────────────
 
 @app.post("/api/auth/register")
 def register_user(data: UserRegister, db: Session = Depends(get_db)):
@@ -185,9 +173,6 @@ def update_profile(data: dict, db: Session = Depends(get_db), current_user: User
         db.commit()
     return {"success": True, "full_name": user.full_name}
 
-# ──────────────────────────────────────────
-# EXPENSE ENDPOINTS (Protected)
-# ──────────────────────────────────────────
 
 def run_extraction_pipeline(temp_file_path: str):
     with Timer("Overall Pipeline"):
@@ -206,8 +191,8 @@ async def extract_text_from_receipt(
     try:
         contents = await file.read()
         img = Image.open(io.BytesIO(contents))
-        img.thumbnail((640, 640))  # Smaller image = much faster OCR on CPU
-        img.save(temp_file_path, "JPEG", quality=75)  # Lower quality is fine for OCR
+        img.thumbnail((640, 640))  
+        img.save(temp_file_path, "JPEG", quality=75)  
         
         loop = asyncio.get_running_loop()
         structured_data = await loop.run_in_executor(
@@ -225,11 +210,9 @@ def save_expense(
 ):
     try:
         total_val = float(str(data.get("total", 0.0)).replace(",", ""))
-        # Serialize items list to JSON string for storage
         items_raw = data.get("items")
         items_json = json.dumps(items_raw) if isinstance(items_raw, list) else items_raw
         
-        # Auto-categorization logic
         category = data.get("category", "Other")
         if category in ("Other", "Pending..."):
             description_text = ""
@@ -242,7 +225,7 @@ def save_expense(
                 category = predict_category_from_text(description_text)
                 print(f"Auto-categorized '{description_text}' to '{category}'")
             elif category == "Pending...":
-                category = "Other"  # Don't let 'Pending...' persist in DB
+                category = "Other"
 
         new_expense = Expense(
             user_id=current_user.id,
@@ -267,10 +250,8 @@ def get_expenses(
     current_user: User = Depends(get_current_user)
 ):
     expenses = db.query(Expense).filter(Expense.user_id == current_user.id).order_by(Expense.created_at.desc()).all()
-    # Parse items JSON strings back into lists for the frontend
     result = []
     for exp in expenses:
-        # Safely parse items JSON
         items_list = []
         if exp.items:
             try:
@@ -336,9 +317,6 @@ def delete_expense(
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-# ──────────────────────────────────────────
-# VOICE EXTRACTION ENDPOINT
-# ──────────────────────────────────────────
 
 class VoiceExtractRequest(BaseModel):
     transcription: str
